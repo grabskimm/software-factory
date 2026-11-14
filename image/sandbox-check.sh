@@ -3,7 +3,7 @@
 # (the real claude CLI against a scripted fake Messages API; no key, no account)
 # the way a worker runs: as the unprivileged `worker` identity with NO
 # capabilities and no_new_privs, so the result says whether bubblewrap can build
-# the sandbox for a worker in THIS container (spike S1 in spikes/README.md).
+# the sandbox for a worker in THIS container.
 #
 #   kubectl -n factory exec deploy/factory -- factory-sandbox-check        (AKS)
 #   docker run --rm <image> factory-sandbox-check

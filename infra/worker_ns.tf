@@ -13,7 +13,7 @@
 #     Role that only the launcher is bound to (a later slice), a ValidatingAdmissionPolicy pins what a pod may say (a later
 #     slice), and the policy below fences what a pod can reach.
 #   * created AFTER the Container Insights agent ConfigMap (`depends_on`), so the log exclusion for this namespace exists
-#     before the first worker pod does. A ConfigMap change restarts the agent; the runbook checks that it has restarted with
+#     before the first worker pod does. A ConfigMap change restarts the agent: check that it has restarted with
 #     the new settings before the first session.
 #
 # What the service account is: a name for the pod to carry (`serviceAccountName`) with `automount_service_account_token =
@@ -38,7 +38,7 @@
 # is accepted by the API server and not enforced, which is why the namespace refuses to plan without it (the preconditions below)
 # and why the canary FAILS a session whose pod can still reach a forbidden address.
 #
-# UNVERIFIED (the mirror, docs/pod-backend.md): that Cilium enforces `ipBlock.except` on this cluster and whether
+# UNVERIFIED (check on a scratch cluster first, docs/pod-backend.md): that Cilium enforces `ipBlock.except` on this cluster and whether
 # `network_policy` must also be set; that the DNS rule reaches the kube-dns pods after Cilium has translated the service
 # address; the `exclude_namespaces` key spelling and the agent's restart behaviour; the documented default list.
 

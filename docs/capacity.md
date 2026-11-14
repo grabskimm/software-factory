@@ -61,7 +61,7 @@ derived budget (also when the budget is turned off, as an estimate). The multipl
 `MEMORY_CEILING_SHARES`.
 
 The constants are `WORKER_CPU_MILLI`, `WORKER_MEMORY_MIB` and `RESERVE_MAX_MIB` in
-`src/factory/capacity.py`. They rest on the measurements below (2026-11-10, 97 sessions of the reference deployment): a worker is
+`src/factory/capacity.py`. They rest on the measurements below (97 sessions): a worker is
 mostly waiting for the model API (about 0.3 to 0.4 cores on average), but a session that builds and
 tests reaches 1.4 to 1.5 GiB at the p95. Whether the agents plus their tests fit on the pool is
 answered for the measured pod at the observed load; re-measure at the new concurrency. The reserve is for the manager, one supervisor per repository,
@@ -285,8 +285,8 @@ nothing.
 
 ### Measurements
 
-**Measured 2026-11-10 on one deployed pod (read-only), the reference deployment.** Sources: the footprint records in the `state.json` of every retained run on
-the pod's data volume (`usage[].footprint`: `peak_rss_mb`, `cpu_seconds`; 97 sessions with a record, the runs of 2026-11-07 to 2026-11-10), the phase
+**Measured on one deployed pod (read-only).** Sources: the footprint records in the `state.json` of every retained run on
+the pod's data volume (`usage[].footprint`: `peak_rss_mb`, `cpu_seconds`; 97 sessions with a record), the phase
 times in the same files (`phase_events`), the manager's `/metrics` through the cluster Prometheus (`factory_capacity_workers`,
 `factory_phase_p95_rss_mib`, `factory_jobs`) and cAdvisor for the pod. Nothing was run to produce load; these are the sessions the deployment did.
 
@@ -308,7 +308,7 @@ of wall time and a p95 of 11 to 28, i.e. about 0.3 to 0.4 cores on average while
 to 0.5 cores on average) with up to 3 workers at once. (3) Concurrency actually reached: `factory_capacity_workers` peaked at **3** of the budget of 21 in 24
 hours, and `factory_manager_children` at 2 runs and 1 append; at most 2 builds and 2 reviews of one repository were running at once. The limit the
 deployment hit was the supply of work and the per-repository settings, not the pod. (4) **UNVERIFIED, not measured:** page cache against working set over time (the
-manager's working set peaked at 1,635 MiB of 24 GiB), and how many workers ran at once before 2026-11-09 (no series; `factory_capacity_workers` is the
+manager's working set peaked at 1,635 MiB of 24 GiB), and how many workers ran at once before the series existed (`factory_capacity_workers` is the
 pod-wide count in use and is now the thing to graph).
 
 **What changed from this (the constants and defaults).** The ceiling of 14 workers is **UNVERIFIED** under load (never more than 3 ran at once). `WORKER_MEMORY_MIB` 1024 to **1536** (the p95 of the heavy repository) and `WORKER_CPU_MILLI` 250 to
@@ -354,7 +354,7 @@ Re-measure after a week at the new settings with `tools/cache_report.py` and the
 
 ### Right-sizing the manager and the fixed node (issue #148)
 
-**Measured (2026-11-10, the section "Measurements" above):** the manager pod's working set peaked at 1,635 MiB of 24 GiB over 24 hours and its 5-minute CPU rate at 2.7 cores of 6 (0.1 to 0.5 on average), **with up to 3 claude workers running inside it**. The node carries 85 % of its CPU and 96 % of its memory as *requests* (container 6 vCPU / 24 GiB, the add-on pods and the kubelet reserve) and uses a fraction of them. The `factory` pool is one `D8ds_v5`, $0.452 an hour, about **$330 a month**.
+**Measured (the section "Measurements" above):** the manager pod's working set peaked at 1,635 MiB of 24 GiB over 24 hours and its 5-minute CPU rate at 2.7 cores of 6 (0.1 to 0.5 on average), **with up to 3 claude workers running inside it**. The node carries 85 % of its CPU and 96 % of its memory as *requests* (container 6 vCPU / 24 GiB, the add-on pods and the kubelet reserve) and uses a fraction of them. The `factory` pool is one `D8ds_v5`, $0.452 an hour, about **$330 a month**.
 
 **Decision.** Two sizes, tied to where the workers run:
 
@@ -365,9 +365,9 @@ Re-measure after a week at the new settings with `tools/cache_report.py` and the
 
 **Saving: about $165 a month** (the VM, half of the fixed node). Together with NAP, whose worker nodes cost nothing at zero sessions, the floor becomes the system node, the manager node and the `mon` node.
 
-**Terraform change: none, on purpose.** `aks_user_pool_vm_size`, `container_cpu` and `container_memory` are variables already; changing the *defaults* would resize the node (a replace of the pool and a rollout of the manager on its ReadWriteOnce disk) at the next apply of any pull request, with the workers still in the pod. The values are set in `INFRA_TFVARS` as the last stage of the migration (`infra/README.md`, step (5)), through the drain gate, **after** the last repository runs in pods, and the plan's check (75 % of the node) accepts exactly the pair above.
+**Terraform change: none, on purpose.** `aks_user_pool_vm_size`, `container_cpu` and `container_memory` are variables already; changing the *defaults* would resize the node (a replace of the pool and a rollout of the manager on its ReadWriteOnce disk) at the next apply of any pull request, with the workers still in the pod. The values are set in `INFRA_TFVARS` (the operator's tfvars) as the last stage of the migration, through the drain gate, **after** the last repository runs in pods, and the plan's check (75 % of the node) accepts exactly the pair above.
 
-**To check before the last stage (UNVERIFIED, not measured):** the manager's own working set and CPU with no in-process worker (graph `container_memory_working_set_bytes` and `rate(container_cpu_usage_seconds_total[5m])` of the `factory` container for a week in pod mode; the stage waits if the p95 is above 4 GiB or 1.5 cores), and the relay's memory while three transcripts stream. The S1 constraint does not apply to the manager node once no worker runs bubblewrap in it, but **`factory-sandbox-check` and the Premium-disk attach are re-run after the node is replaced** (`docs/operations.md`, "Platform maintenance"). A metrics scraper does not change this: it runs on the `mon` pool.
+**To check before the last stage (UNVERIFIED, not measured):** the manager's own working set and CPU with no in-process worker (graph `container_memory_working_set_bytes` and `rate(container_cpu_usage_seconds_total[5m])` of the `factory` container for a week in pod mode; the stage waits if the p95 is above 4 GiB or 1.5 cores), and the relay's memory while three transcripts stream. The sandbox constraint does not apply to the manager node once no worker runs bubblewrap in it, but **`factory-sandbox-check` and the Premium-disk attach are re-run after the node is replaced** (`docs/operations.md`, "Platform maintenance"). A metrics scraper does not change this: it runs on the `mon` pool.
 
 ## Stop-the-world breaker: spend limits and 429 storms
 
@@ -434,11 +434,11 @@ cannot trip it again.
 **Not covered.** Only the failed jobs of a run are read: a plan session or an append that hits the limit leaves no job, and the label
 trigger's own backoff (60 s doubling to 1 h) is what paces it. A preflight session fails its job and is read like any other. **The
 Anthropic Console workspace spend limit is a human action** (`docs/operations.md`, "Cost guardrails"): the breaker reacts to the limit,
-it does not set one. The runbook that records the real error shapes is slice 21 of the pod backend program.
+it does not set one.
 
 **UNVERIFIED.** The real `claude` error for a spend limit, a 401 and a 429; that a 429 reaches the `result` event at all (the tail of the
 log is the fallback); and Anthropic's acceleration limits. The tests inject **assumed** shapes, so they pin the rules and not the real
-events; recordings of a live run replace them (slice 22). Until then an unrecognised spend-limit shape is `rate_limit_unknown` and
+events; recordings of a live run would replace them (slice 22 of the pod backend program). Until then an unrecognised spend-limit shape is `rate_limit_unknown` and
 trips after three in five minutes, never at once.
 
 ## Scaling past one pod

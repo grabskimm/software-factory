@@ -179,7 +179,7 @@ class JobTests(unittest.TestCase):
 
     def test_the_commands_are_the_ones_the_documents_give(self):
         found = {name: "\n".join(block) for name, block in jobs().items()}
-        self.assertIn("python -m compileall -q src tests tools spikes", found["compile"])
+        self.assertIn("python -m compileall -q src tests tools", found["compile"])
         self.assertIn("python -m json.tool managed-settings.json", found["compile"])
         self.assertIn("python -m json.tool handoff/ruleset.json", found["compile"])
         self.assertIn("pip install -e .", found["unit-tests"])
@@ -209,7 +209,6 @@ class JobTests(unittest.TestCase):
             "src",
             "tests",
             "tools",
-            "spikes",
             "managed-settings.json",
             "handoff/ruleset.json",
             "tools/requirements-token-broker.txt",

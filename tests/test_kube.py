@@ -857,7 +857,7 @@ class ErrorMappingTest(KubeCase):
         self.assertNoLeak(caught.exception, CANARY_BODY, "not-a-rule")
 
     def test_the_real_servers_policy_denial_is_a_403_that_is_denied_not_credentials(self):
-        # Recorded from kind v1.36.1 (docs/pod-backend-local-e2e.md, D1): a ValidatingAdmissionPolicy whose reason is Forbidden answers 403
+        # Recorded from kind v1.36.1: a ValidatingAdmissionPolicy whose reason is Forbidden answers 403
         # with `[rule:<id>]`, and an authorisation failure is ALSO a 403 (it stays a ConfigError).
         message = (
             'pods "factory-w-x" is forbidden: ValidatingAdmissionPolicy \'factory-worker-pods\' with binding '

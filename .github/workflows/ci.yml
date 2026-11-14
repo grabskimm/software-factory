@@ -56,7 +56,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Byte-compile
-        run: python -m compileall -q src tests tools spikes
+        run: python -m compileall -q src tests tools
       - name: Validate JSON files
         run: |
           python -m json.tool managed-settings.json > /dev/null

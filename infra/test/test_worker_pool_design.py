@@ -176,7 +176,7 @@ class ClusterArgumentsAreOmittedWhenNull(unittest.TestCase):
     def test_the_readme_documents_the_deliberate_removal_of_prevent_destroy(self):
         readme = squash((INFRA / "README.md").read_text(encoding="utf-8"))
         self.assertIn("prevent_destroy", readme)
-        for phrase in ("scratch copy of `infra/`", "never commit", "throwaway mirror", "re-creat"):
+        for phrase in ("scratch copy of `infra/`", "never commit", "test deployment", "re-creat"):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, readme)
 
@@ -434,10 +434,10 @@ class TheSurgeReserve(unittest.TestCase):
                 self.assertIn(phrase, description)
 
     def configured_figures(self):
-        """The numbers of the surge reserve, derived from the defaults of variables.tf and the live configuration.
+        """The numbers of the surge reserve, derived from the defaults of variables.tf and a configuration with the optional pool.
 
-        The live configuration (the INFRA_TFVARS of the reference deployment) runs the system, factory and
-        `mon` pools: the first two are the defaults, the `mon` size is not a default (monitoring_node_pool_vm_size is null).
+        That configuration runs the system, factory and `mon` pools: the first two are the defaults, the `mon` size is not a
+        default (monitoring_node_pool_vm_size is null), so the test assumes the example size of terraform.tfvars.example.
         """
         defaults = {
             name: re.search(r'default\s*=\s*"?([A-Za-z0-9_]+)"?', variable(name)).group(1)
@@ -450,9 +450,6 @@ class TheSurgeReserve(unittest.TestCase):
         limit = int(defaults["worker_pool_limits_cpu"])
         node = self.facts(defaults["worker_pool_sku"])[0]
 
-        def largest(quota, production):
-            return (quota - 2 * production) // node * node
-
         return {
             "defaults": defaults,
             "pools": pools,
@@ -460,77 +457,32 @@ class TheSurgeReserve(unittest.TestCase):
             "live": live,
             "limit": limit,
             "node": node,
-            "largest": largest,
         }
 
-    def test_with_the_defaults_the_documented_numbers_hold(self):
+    def test_with_the_defaults_the_inputs_of_the_surge_reserve_hold(self):
         figures = self.configured_figures()
-        defaults, pools, live, limit, node, largest = (figures[key] for key in ("defaults", "pools", "live", "limit", "node", "largest"))
+        defaults, pools, live, limit, node = (figures[key] for key in ("defaults", "pools", "live", "limit", "node"))
         worker_family = self.facts(defaults["worker_pool_sku"])[1]
         self.assertEqual(pools, ("Standard_D2ds_v5", "Standard_D8ds_v5", "Standard_D2ds_v5"))
-        # measured 2026-11-09 on the reference deployment: production runs 12 vCPUs, 10 without the mon pool, all of the Dds_v5 family
+        # the production pools run 12 vCPUs with the optional mon pool and 10 without it, all of the Dds_v5 family
         self.assertEqual((live, figures["without_mon"]), (12, 10))
         self.assertEqual({self.facts(size)[1] for size in pools}, {"Dds_v5"})
         self.assertEqual(limit // node * int(defaults["worker_pool_pods_per_node"]), 8)
         # the default worker family holds no production vCPU: the family check only needs the limit within the family quota
         self.assertEqual(sum(self.facts(size)[0] for size in pools if self.facts(size)[1] == worker_family), 0)
-        self.assertEqual(largest(350, 0), 348)
-        # what binds is the regional total (150), which the precondition cannot see
-        self.assertEqual((largest(150, live), largest(150, live) // node), (124, 31))
-        self.assertEqual((150 - limit - live, 150 - limit - 2 * live), (106, 94))
 
-    def test_with_a_worker_size_of_the_production_family_the_figures_are_those_of_quota_65(self):
-        figures = self.configured_figures()
-        live, without_mon, limit, node, largest = (figures[key] for key in ("live", "without_mon", "limit", "node", "largest"))
-        # Standard_D4ds_v5 shares the Dds_v5 family with all three production pools; the family stays at 65 (increase refused)
-        self.assertEqual((largest(65, live), largest(65, live) // node), (40, 10))
-        self.assertEqual((largest(65, without_mon), largest(65, without_mon) // node), (44, 11))
-        self.assertEqual((65 - limit - live, 65 - limit - 2 * live), (21, 9))
-
-    def test_no_file_states_the_stale_quota_figures_and_each_states_the_measured_ones(self):
-        figures = self.configured_figures()
-        live, limit, node, largest = (figures[key] for key in ("live", "limit", "node", "largest"))
-        regional = (largest(150, live), largest(150, live) // node, 150 - limit - live, 150 - limit - 2 * live)
-        family = (largest(65, live), largest(65, live) // node, 65 - limit - live, 65 - limit - 2 * live)
-
-        def comments(name):
-            lines = (INFRA / name).read_text(encoding="utf-8").splitlines()
-            return squash(" ".join(line.lstrip().lstrip("#") for line in lines))
-
-        docs = {
-            "infra/worker_pool.tf": comments("worker_pool.tf"),
-            "infra/README.md": squash((INFRA / "README.md").read_text(encoding="utf-8")),
-            "docs/pod-backend.md": squash((ROOT / "docs" / "pod-backend.md").read_text(encoding="utf-8")),
-        }
-        stale = (
-            "largest limit is 44, 11 nodes",
-            "the largest limit is 44 (11 nodes",
-            "65 - 32 - 10",
-            "is 23 vCPUs before",
-            "reserve beyond production is 23",
-            "and 13 while both",
-            "measured quota of 65 and 10 production vCPUs",
-            "measured 65 and 10",
-            "65 total and 10 used were read once",
-        )
-        for name, text in docs.items():
-            for phrase in stale:
-                with self.subTest(file=name, stale=phrase):
-                    self.assertNotIn(phrase, text)
-            for phrase in ("12 vCPUs", "regional total"):
-                with self.subTest(file=name, phrase=phrase):
-                    self.assertIn(phrase, text)
-            with self.subTest(file=name, figures="regional"):
-                self.assertRegex(text, rf"largest limit (is )?{regional[0]} \({regional[1]} nodes")
-                self.assertRegex(text, rf"(leaves|=) {regional[2]} (vCPUs )?(are left )?before")
-                self.assertRegex(text, rf"(and|=) {regional[3]} while")
-            with self.subTest(file=name, figures="family"):
-                self.assertRegex(text, rf"largest limit (is )?{family[0]} \({family[1]} nodes")
-                self.assertRegex(text, rf"(leaves|=) {family[2]} before a surge and (65 - 32 - 24 = )?{family[3]} while")
+    def test_the_example_names_the_default_worker_size_and_not_the_capped_family(self):
+        # The README no longer carries the quota arithmetic of one subscription (it tells the operator to read az vm list-usage);
+        # the example still has to show the default size and the family quota input, and must not recommend the small family.
         example = (INFRA / "terraform.tfvars.example").read_text(encoding="utf-8")
         self.assertIn('# worker_pool_sku           = "Standard_D4s_v6"', example)
         self.assertIn("# family_vcpu_quota         = 350", example)
         self.assertNotIn("D4ds_v5", example, "the example must not recommend the capped family")
+
+    def test_the_readme_says_the_regional_total_is_not_checked(self):
+        readme = squash((INFRA / "README.md").read_text(encoding="utf-8"))
+        self.assertIn("does **not** check the regional vCPU total (`cores`)", readme)
+        self.assertIn("`family_vcpu_quota`", readme)
 
 
 class TheStagedOrderIsDocumented(unittest.TestCase):
@@ -549,7 +501,7 @@ class TheStagedOrderIsDocumented(unittest.TestCase):
             "`stage=cluster`",
             "drain gate",
             "snapshots",
-            "mirror",
+            "scratch deployment",
             "worker_nodepool_enabled",
             "family_vcpu_quota",
             "POOL_OBJECTS",

@@ -1,7 +1,7 @@
 # Example variable values for infra/. NOT auto-loaded (the name ends in .example).
 #
-# Copy this file to a name you keep out of version control, replace every <<PLACEHOLDER>>,
-# and pass it explicitly:
+# Copy this file to a name you keep out of version control, replace every <<PLACEHOLDER>> (the two *_secret_version
+# values only once the secrets are uploaded: infra/README.md, "Bootstrap" steps 7 and 8), and pass it explicitly:
 #
 #   cp terraform.tfvars.example prod.tfvars     # *.tfvars is git-ignored in infra/
 #   terraform -chdir=infra plan -input=false -var-file=prod.tfvars
@@ -26,14 +26,15 @@ tags = {
 # on its own, so that promoting an image is one reviewed change (infra/README.md, "Promote an image digest").
 acr_name                = "<<ACR_NAME>>"
 acr_resource_group_name = "<<ACR_RESOURCE_GROUP>>"
-image_repository        = "<<IMAGE_REPOSITORY>>" # must equal the repository you push the image to (default: factory)
+image_repository        = "<<IMAGE_REPOSITORY>>" # must equal the repository you push the image to; no default
 
 # --- Key Vault (the operator uploads the two secrets; see infra/README.md) -------------
 key_vault_name                        = "<<KEY_VAULT_NAME>>"
 anthropic_api_key_secret_version      = "<<ANTHROPIC_API_KEY_SECRET_VERSION>>"      # 32 hex characters
 github_app_private_key_secret_version = "<<GITHUB_APP_PRIVATE_KEY_SECRET_VERSION>>" # 32 hex characters
 
-# Optional, leave empty unless you need them:
+# Optional, leave empty unless you need them. For the first bootstrap set the first two BEFORE the stage-0 apply, which creates the
+# vault with these firewall rules and the Secrets Officer role you upload with (infra/README.md, "Variables", item 4):
 # key_vault_ip_rules                      = ["<<OPERATOR_PUBLIC_IP>>"]  # only while uploading the secrets
 # key_vault_secrets_officer_principal_ids = ["<<OPERATOR_OBJECT_ID>>"]
 # token_broker_command                    = "<<TOKEN_BROKER_COMMAND>>"  # only if the image does not set it
@@ -129,15 +130,15 @@ repo_configs = {
 
 # --- Cilium, node auto-provisioning and the worker pool (issue #144; infra/README.md, "Switching the data plane") ----
 # ALL OFF. Never set by a pull request: these live in INFRA_TFVARS (the operator's tfvars) and are set by hand, in this order, each by a
-# manual apply behind the drain gate, after snapshots and only after the throwaway mirror ran it.
+# manual apply behind the drain gate, after snapshots and only after a scratch deployment ran it.
 # network_data_plane        = "cilium"       # step 1, stage=cluster: reimages every node at once; stays set afterwards
-# network_policy            = "cilium"       # only if the mirror shows the Cilium data plane needs it
+# network_policy            = "cilium"       # only if a scratch deployment shows the Cilium data plane needs it
 # nap_mode                  = "Auto"         # step 2, stage=cluster; stays set afterwards
 # nap_default_node_pools    = "None"         # default: Factory defines its own pool
 # worker_nodepool_enabled   = true           # step 3, stage=all: creates the AKSNodeClass and NodePool (needs steps 1 and 2)
 # family_vcpu_quota         = 350            # the limit of the VM family of worker_pool_sku in `az vm list-usage` (for example StandardDsv6Family: 350 in one reference subscription); the regional `cores` limit (150) is NOT checked by Terraform
 # worker_pool_sku           = "Standard_D4s_v6"  # a Dsv6 or Dsv7 size, not Ddsv5 (its family quota is small and not every zone offers it)
-# worker_pool_limits_cpu    = 32             # a multiple of the node vCPUs; plus twice the production vCPUs of the family at most the quota (for a Dds_v5 worker size and quota 65 the largest is 40, with 12 production vCPUs)
+# worker_pool_limits_cpu    = 32             # a multiple of the node vCPUs; plus twice the vCPUs of the other pools in the same VM family, at most the family quota
 # worker_pool_pods_per_node = 1              # one repository per node: the ceiling is floor(limits_cpu / node vCPU) * this (8)
 # pod_backend_enabled       = false          # step 4 (needs steps 1 to 3): the worker namespace, its service account and its default-deny NetworkPolicy, the log exclusion, the relay rule; nothing runs a worker pod yet
 
@@ -148,6 +149,10 @@ repo_configs = {
 # grafana_oauth_client_id             = "<<GRAFANA_OAUTH_CLIENT_ID>>"             # the Entra app registration's client ID
 # grafana_oauth_client_secret_version = "<<GRAFANA_OAUTH_CLIENT_SECRET_VERSION>>" # 32 hex characters
 # grafana_operator_role               = "Editor"                                  # or "Admin"
+# Public read-only Grafana (anonymous Viewer). WARNING: true makes every dashboard, the alert state and every Prometheus series
+# (repository names, spend, pod and node names) readable by anyone who can reach the host, with no sign-in. Review first: docs/metrics.md,
+# "Publishing the dashboards read-only". Needs monitoring_enabled; operators keep signing in with Entra at /grafana/login.
+# grafana_anonymous_viewer_enabled    = false                                     # default; true publishes
 # Alerts are visible in Prometheus and Grafana only, until you name a receiver:
 # alert_receiver                      = "slack"                                   # none | slack | msteams | webhook
 # alert_receiver_secret_version       = "<<ALERT_RECEIVER_SECRET_VERSION>>"       # Key Vault secret alert-receiver-url

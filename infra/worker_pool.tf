@@ -18,7 +18,7 @@
 # `expireAfter: Never` because a node that holds a session must not be rotated by the one forceful path whose behaviour
 # is disputed; an empty node is consolidated after 30 seconds anyway (WhenEmpty).
 #
-# UNVERIFIED against the installed custom resource definitions (the mirror, docs/pod-backend.md): the API versions,
+# UNVERIFIED against the installed custom resource definitions (check on a scratch cluster first, docs/pod-backend.md): the API versions,
 # whether `expireAfter` belongs under spec.template.spec (written here, as in the default pool the add-on creates) or
 # under spec.disruption (as one documentation page shows), the kubelet field `podPidsLimit`, `startupTaints`, and whether the
 # `karpenter.azure.com/sku-name` requirement accepts the default size Standard_D4s_v6 (not tested on it).
@@ -81,18 +81,14 @@ locals {
 
   # The surge reserve. A node image or Kubernetes upgrade surges one extra node of each production pool (max_surge = 1
   # in aks.tf), so the vCPUs of the worker family that must stay available are the pool's own limit plus TWICE the
-  # production vCPUs of that family. The figures below are a function of the configured pools, never a constant:
+  # production vCPUs of that family. The figures are a function of the configured pools, never a constant:
   #   largest limit = floor((quota - 2 * production vCPUs of the family) / node vCPUs) * node vCPUs.
-  # Measured on 2026-11-09 on the reference deployment: production runs 12 vCPUs,
-  # all of the Dds_v5 family (system D2ds_v5 + factory D8ds_v5 + mon D2ds_v5; 10 without the mon pool), the Dds_v5
-  # family limit stays 65 (its increase was refused), Dsv6 and Dsv7 carry 350 each, the regional total is 150.
-  #   * Default Standard_D4s_v6 (the operator's choice of 2026-11-09): family Ds_v6 holds no production vCPU, so this check only
-  #     needs the limit within the family quota. What binds is the REGIONAL total, which this check cannot see:
-  #     limit + 2 * 12 <= 150, largest limit 124 (31 nodes). At the default 32, 150 - 32 - 12 = 106 vCPUs are left before
-  #     a surge and 150 - 32 - 24 = 94 while system, factory and mon surge together.
-  #   * A size of the production family (Standard_D4ds_v5), quota 65: largest limit 40 (10 nodes; 44 and 11 nodes only
-  #     without the mon pool). At the default 32, 65 - 32 - 12 = 21 before a surge and 65 - 32 - 24 = 9 while all three
-  #     production pools surge. Standard_D4ds_v5 is also NotAvailableForSubscription in zone 2 of westus3.
+  # With the default pools (system D2ds_v5 + factory D8ds_v5, plus D2ds_v5 with the optional mon pool: 12 vCPUs of the
+  # Dds_v5 family) and the default worker size Standard_D4s_v6 (family Ds_v6), no production vCPU is in the worker family, so
+  # this check only needs the limit within the family quota. What binds is then the REGIONAL vCPU total (`cores` in
+  # `az vm list-usage`), which this check cannot see: limit + 2 * production vCPUs must fit it too. A worker size of the
+  # production family (Standard_D4ds_v5) shares that family's quota with the production pools and is not offered in every
+  # zone (az vm list-skus shows it for your subscription).
   worker_pool_vcpu_need = local.worker_pool.limits_cpu + 2 * local.worker_family_production_vcpu
 
   # The pods per node of the default resource class of the pod contract: worker_pool_pods_per_node may not exceed it.

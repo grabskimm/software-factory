@@ -218,7 +218,7 @@ one-shot Kubernetes Job built from that image:
 * **Docker, or a Docker-in-Docker daemon, inside the Factory pod.**
 * **Any privileged container next to the supervisor**, and with it a container runtime
   socket, `CAP_SYS_ADMIN` or a relaxed security context beyond the three pod settings
-  recorded for the sandbox (`spikes/S1.md`).
+  the sandbox needs (`hostUsers: false`, `procMount: Unmasked`, `appArmorProfile: Unconfined`).
 * **A runner-style base image** for the supervisor.
 * Trivy or another scanner with its own vulnerability database in the image (the scan runs
   outside the image, against the built image: `image/README.md`).

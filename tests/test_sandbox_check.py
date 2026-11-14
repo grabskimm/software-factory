@@ -3,7 +3,7 @@
 The image sets FACTORY_REQUIRE_WORKER_IDENTITY=1, and run_agent refuses a call without a
 worker identity when it is set. The check already runs as the worker, and sandbox_e2e.py
 calls run_agent without one, so the wrapper must clear the flag; otherwise no probe ever
-reaches claude and spike S1 reports a false FAIL. sandbox_e2e.py must also say so when
+reaches claude and the check reports a false FAIL. sandbox_e2e.py must also say so when
 run_agent stops before claude starts, instead of printing only a list of FAIL lines.
 """
 

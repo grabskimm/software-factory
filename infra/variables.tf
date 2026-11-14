@@ -252,7 +252,7 @@ variable "ingress_dns_label" {
 }
 
 variable "ingress_custom_host" {
-  description = "Optional host name of your own (for example factory.example.org) that serves the same API, dashboard (/ui/) and, with monitoring, Grafana as the Azure name above. Null (the default) changes nothing. When set, Caddy obtains a Let's Encrypt certificate for it as well as for the Azure name (both keep working), Grafana's root_url moves to it, and the outputs list the redirect URIs to add to the Entra registrations. Create the DNS record first (README.md, \"Custom host name\"): a CNAME to <label>.<location>.cloudapp.azure.com, or an A record to ingress_public_ip. Lowercase, no wildcard, not an azure name."
+  description = "Optional host name of your own (for example factory.example.org) that serves the same API, dashboard (/ui/) and, with monitoring, Grafana as the Azure name above. Null (the default) changes nothing. When set, Caddy obtains a Let's Encrypt certificate for it as well as for the Azure name (both keep working), Grafana's root_url moves to it, and the outputs list the redirect URIs to add to the Entra registrations. Create the DNS record first (infra/README.md, \"Browser sign-in and custom host name\"): a CNAME to <label>.<location>.cloudapp.azure.com, or an A record to ingress_public_ip. Lowercase, no wildcard, not an azure name."
   type        = string
   default     = null
 
@@ -370,7 +370,7 @@ variable "aks_sku_tier" {
 }
 
 variable "aks_kubernetes_version" {
-  description = "Kubernetes version of the cluster, `1.<minor>` (the latest patch of that minor) or `1.<minor>.<patch>`. Null takes the latest version AKS recommends at creation. The version is never upgraded automatically: raise it here, deliberately. The pod needs user namespaces (spec.hostUsers=false), which are on by default from 1.33; the spike passed on 1.36."
+  description = "Kubernetes version of the cluster, `1.<minor>` (the latest patch of that minor) or `1.<minor>.<patch>`. Null takes the latest version AKS recommends at creation. The version is never upgraded automatically: raise it here, deliberately. The pod needs user namespaces (spec.hostUsers=false), which are on by default from 1.33; the pod's sandbox settings were exercised on 1.36."
   type        = string
   default     = null
 
@@ -514,7 +514,7 @@ variable "network_data_plane" {
 }
 
 variable "network_policy" {
-  description = "Network policy of the cluster. Null (the default) omits the argument. Only `cilium` is accepted, and only together with network_data_plane = cilium (the provider's rule). Whether the Cilium data plane also needs this value for policies to be enforced is UNVERIFIED: the throwaway mirror answers it before anything is set. The other provider values (`azure`, `calico`) are not offered: moving to them from the cluster's current state forces a new cluster, and Calico is not supported with node auto-provisioning."
+  description = "Network policy of the cluster. Null (the default) omits the argument. Only `cilium` is accepted, and only together with network_data_plane = cilium (the provider's rule). Whether the Cilium data plane also needs this value for policies to be enforced is UNVERIFIED: try it on a scratch deployment before anything is set. The other provider values (`azure`, `calico`) are not offered: moving to them from the cluster's current state forces a new cluster, and Calico is not supported with node auto-provisioning."
   type        = string
   default     = null
 
@@ -530,7 +530,7 @@ variable "network_policy" {
 }
 
 variable "nap_mode" {
-  description = "Node auto-provisioning mode of the cluster: `Auto` or `Manual`. Null (the default) omits the whole `node_provisioning_profile` block, which cannot change the cluster (the argument is optional and computed in azurerm 4.81). Switching it back needs an explicit `Manual` and a clean-up first (no NAP node left, every NodePool at limits.cpu 0): the runbook, not a variable edit."
+  description = "Node auto-provisioning mode of the cluster: `Auto` or `Manual`. Null (the default) omits the whole `node_provisioning_profile` block, which cannot change the cluster (the argument is optional and computed in azurerm 4.81). Switching it back needs an explicit `Manual` and a clean-up first (no NAP node left, every NodePool at limits.cpu 0): a deliberate manual procedure, not a variable edit."
   type        = string
   default     = null
 
@@ -579,7 +579,7 @@ variable "worker_pool_limits_cpu" {
 }
 
 variable "worker_pool_sku" {
-  description = "VM size of every node of the worker pool. The default is the operator's choice of 2026-11-09: size the NAP user nodes from the Dsv6 or Dsv7 family, not Ddsv5, whose family limit stays 65 (its increase was refused) and whose Standard_D4ds_v5 is NotAvailableForSubscription in zone 2 of westus3. The class sizes of the pod contract (2 vCPU, 4 GiB per `standard` session) assume one session per 4 vCPU node with 3.86 vCPU allocatable, which was measured on Standard_D4ds_v5 only: the allocatable CPU and memory of Standard_D4s_v6, and whether the NodePool sku-name requirement accepts it, are NOT measured, so re-run S1 and the footprint measurement on the chosen size before the pool is switched on. D- and E-series sizes only, like aks_user_pool_vm_size."
+  description = "VM size of every node of the worker pool. The default sizes the NAP user nodes from the Dsv6 or Dsv7 family, not Ddsv5, whose regional family quota is small in many subscriptions and whose Standard_D4ds_v5 can be NotAvailableForSubscription in a zone (check `az vm list-skus` for your region). The class sizes of the pod contract (2 vCPU, 4 GiB per `standard` session) assume one session per 4 vCPU node with 3.86 vCPU allocatable, which was measured on Standard_D4ds_v5 only: the allocatable CPU and memory of Standard_D4s_v6, and whether the NodePool sku-name requirement accepts it, are NOT measured, so measure the sandbox check (`factory-sandbox-check`) and the footprint on the chosen size before the pool is switched on. D- and E-series sizes only, like aks_user_pool_vm_size."
   type        = string
   default     = "Standard_D4s_v6"
 
@@ -601,7 +601,7 @@ variable "worker_pool_pods_per_node" {
 }
 
 variable "family_vcpu_quota" {
-  description = "Regional vCPU quota of the VM family of worker_pool_sku in this subscription, the `limit` of that family in `az vm list-usage --location <location>` (for the default Standard_D4s_v6 the family is `Standard Dsv6 Family`, 350 on 2026-11-09; for Standard_D4ds_v5 it is `Standard DDSv5 Family`, 65 and shared with the production pools; the family quota is also shared with a throwaway mirror). Null (the default) is accepted only while worker_nodepool_enabled is false; it is the input of the surge-reserve check of worker_pool_limits_cpu, which counts the family only: the regional vCPU total (`cores` in `az vm list-usage`, 150 on 2026-11-09, shared by every family) is NOT checked here, so the operator reads it too."
+  description = "Regional vCPU quota of the VM family of worker_pool_sku in this subscription, the `limit` of that family in `az vm list-usage --location <location>` (for the default Standard_D4s_v6 the family is `Standard Dsv6 Family`; for Standard_D4ds_v5 it is `Standard DDSv5 Family`, which the system, factory and monitoring pools also draw on). Null (the default) is accepted only while worker_nodepool_enabled is false; it is the input of the surge-reserve check of worker_pool_limits_cpu, which counts the family only: the regional vCPU total (`cores` in `az vm list-usage`, shared by every family) is NOT checked here, so the operator reads it too."
   type        = number
   default     = null
 
@@ -612,13 +612,13 @@ variable "family_vcpu_quota" {
 }
 
 variable "pod_backend_enabled" {
-  description = "Creates the pod backend of the cluster (issues #144, #145 and #147), all of it default off. The fence (worker_ns.tf): the namespace `factory-workers` (Pod Security privileged, the three relaxations of the worker pod need it), the service account `factory-worker` (no API token, no RoleBinding) and a default-deny NetworkPolicy that lets a worker pod reach only cluster DNS, the relay port of the manager pod and TCP 443 outside the cloud metadata, the pod, service and node ranges. With it on, the Container Insights agent ConfigMap also stops collecting the stdout and stderr of that namespace, and the prepared factory_network_policy (monitoring.tf) admits the relay port from it. The admission policies that pin what a worker pod and its Secret may say (worker_policy.tf, infra/policy/*.json) and their parameter ConfigMap. The Role and RoleBinding of the launcher (worker_rbac.tf, each waiting for the fence). And the manager pod itself (pod_backend.tf, k8s.tf): the launcher and relay containers, the init container that sets the owner of their two shared directories, the projected token that only the launcher mounts, the relay Service, the environment of the main container and a toleration of the manager taint, so that rolling the Deployment restarts the manager with the backend in it. Off (the default) creates nothing, leaves the plan without a line, the agent ConfigMap data and the Deployment byte-identical. Needs network_data_plane = cilium, nap_mode = Auto and worker_nodepool_enabled (checked as preconditions of the namespace): without an engine the policy is accepted and not enforced. A repository config with execution = pod stays refused by the manager whatever this says (it reads FACTORY_POD_BACKEND, and no pod backend is built into it yet). Turning it off again DELETES the namespace and every worker pod in it, a disruption that ignores `do-not-disrupt`: the cluster guard (tools/infra_cluster_guard.py) refuses that on the automatic path, and the apply must go through the drain gate."
+  description = "Creates the pod backend of the cluster (issues #144, #145 and #147), all of it default off. The fence (worker_ns.tf): the namespace `factory-workers` (Pod Security privileged, the three relaxations of the worker pod need it), the service account `factory-worker` (no API token, no RoleBinding) and a default-deny NetworkPolicy that lets a worker pod reach only cluster DNS, the relay port of the manager pod and TCP 443 outside the cloud metadata, the pod, service and node ranges. With it on, the Container Insights agent ConfigMap also stops collecting the stdout and stderr of that namespace, and the prepared factory_network_policy (monitoring.tf) admits the relay port from it. The admission policies that pin what a worker pod and its Secret may say (worker_policy.tf, infra/policy/*.json) and their parameter ConfigMap. The Role and RoleBinding of the launcher (worker_rbac.tf, each waiting for the fence). And the manager pod itself (pod_backend.tf, k8s.tf): the launcher and relay containers, the init container that sets the owner of their two shared directories, the projected token that only the launcher mounts, the relay Service, the environment of the main container and a toleration of the manager taint, so that rolling the Deployment restarts the manager with the backend in it. Off (the default) creates nothing, leaves the plan without a line, the agent ConfigMap data and the Deployment byte-identical. Needs network_data_plane = cilium, nap_mode = Auto and worker_nodepool_enabled (checked as preconditions of the namespace): without an engine the policy is accepted and not enforced. With it on, the main container of the manager pod gets FACTORY_POD_BACKEND=on, but a repository's sessions still run inside the manager pod until its `repo_configs` entry sets execution = \"pod\" (the per-repository switch; removing the line undoes it). Turning it off again DELETES the namespace and every worker pod in it, a disruption that ignores `do-not-disrupt`: the cluster guard (tools/infra_cluster_guard.py) refuses that on the automatic path, and the apply must go through the drain gate."
   type        = bool
   default     = false
 }
 
 variable "manager_pool_taint_enabled" {
-  description = "Taints the node pool `factory` of the manager pod with workload=manager:NoSchedule (the contract's manager taint, docs/pod-backend.md), so that nothing without the toleration is scheduled there: the manager pod (which already carries the toleration whenever pod_backend_enabled is on, so that this flip needs no Deployment change), every cluster add-on that tolerates all taints, and nothing else. Default false: the node_taints argument is omitted and the plan has no line for the pool. Needs pod_backend_enabled (checked here), so that the toleration is deployed before the taint. The provider documents `node_taints` of a node pool as forcing a new resource (UNVERIFIED for the pinned provider version): the flip may REPLACE the pool, which deletes its node (the manager pod is down until the new node is ready; the data disk is retained) and the cluster guard refuses it on the automatic path and on stage=all, and wants cluster_snapshots_taken=true on stage=cluster. Whether the add-on pods that the manager pod needs (the Secrets Store CSI driver and its Azure provider, the Azure Disk CSI driver) tolerate the taint on this cluster is UNVERIFIED: a manager that cannot mount its Key Vault volume is down. Run it on the throwaway mirror first."
+  description = "Taints the node pool `factory` of the manager pod with workload=manager:NoSchedule (the contract's manager taint, docs/pod-backend.md), so that nothing without the toleration is scheduled there: the manager pod (which already carries the toleration whenever pod_backend_enabled is on, so that this flip needs no Deployment change), every cluster add-on that tolerates all taints, and nothing else. Default false: the node_taints argument is omitted and the plan has no line for the pool. Needs pod_backend_enabled (checked here), so that the toleration is deployed before the taint. The provider documents `node_taints` of a node pool as forcing a new resource (UNVERIFIED for the pinned provider version): the flip may REPLACE the pool, which deletes its node (the manager pod is down until the new node is ready; the data disk is retained) and the cluster guard refuses it on the automatic path and on stage=all, and wants cluster_snapshots_taken=true on stage=cluster. Whether the add-on pods that the manager pod needs (the Secrets Store CSI driver and its Azure provider, the Azure Disk CSI driver) tolerate the taint on this cluster is UNVERIFIED: a manager that cannot mount its Key Vault volume is down. Try it on a scratch deployment first."
   type        = bool
   default     = false
 
@@ -643,7 +643,7 @@ variable "container_cpu" {
   }
 
   # Terraform 1.9+ lets a validation read other variables. 75 % of the node is the margin
-  # that leaves room for the node reservation and the DaemonSets (README.md, UNVERIFIED).
+  # that leaves room for the node reservation and the DaemonSets (not measured on every node size).
   validation {
     condition     = try(var.container_cpu <= 0.75 * tonumber(regex("^Standard_[DE]([0-9]+)", var.aks_user_pool_vm_size)[0]), false)
     error_message = "container_cpu must fit the node of the factory pool: at most 75 % of the vCPUs of aks_user_pool_vm_size. Lower container_cpu or pick a larger aks_user_pool_vm_size."
@@ -810,6 +810,17 @@ variable "grafana_operator_role" {
   }
 }
 
+variable "grafana_anonymous_viewer_enabled" {
+  description = "Publishes Grafana read-only: anyone who can reach the ingress host opens https://<ingress host>/grafana/ without signing in, as a Viewer of the one organization, and lands on the Factory overview dashboard. Off by default; off, the rendered grafana.ini and so the Grafana pod are unchanged. Only has an effect with monitoring_enabled = true and is refused without it. Everything in the Grafana organization then becomes readable by anyone who can reach the host, not only the three provisioned dashboards: a dashboard an operator saves there, the alert rules and their state and, through Grafana's query API, every series Prometheus holds (repository names, spend, pod and node names). A visitor cannot change a dashboard, the data source or any setting (viewers_can_edit = false, the dashboards and the data source are provisioned as not editable, and a Viewer cannot use Explore or create snapshots); it can still create short URLs, which Grafana stores in its own database. Operators still sign in with Entra at /grafana/login. ingress_allowed_cidrs, when set, still limits who can reach the host at all. docs/metrics.md, \"Publishing the dashboards read-only\", lists what to review first and how to turn it off again."
+  type        = bool
+  default     = false
+
+  validation {
+    condition     = !var.grafana_anonymous_viewer_enabled || var.monitoring_enabled
+    error_message = "grafana_anonymous_viewer_enabled needs monitoring_enabled: without Grafana there is nothing to publish."
+  }
+}
+
 variable "alert_receiver" {
   description = "Where Alertmanager sends alerts: none (the default: no Alertmanager runs, alerts are visible in Prometheus and Grafana only), slack (an incoming webhook URL), msteams (a Teams workflow or connector webhook URL, Alertmanager's msteamsv2 receiver) or webhook (any HTTPS endpoint that accepts Alertmanager's webhook JSON). The URL is a secret: it lives in Key Vault (alert_receiver_secret_version), never here."
   type        = string
@@ -915,7 +926,7 @@ variable "alertmanager_image" {
 }
 
 variable "kube_state_metrics_image" {
-  description = "kube-state-metrics image (issue 149; one small pod next to Prometheus whenever monitoring_enabled is true): `<registry path>:<version tag>` and optionally `@sha256:<digest>`, pinned like prometheus_image. The digest line of monitoring-images.auto.tfvars is NOT set yet: it could not be read offline (infra/README.md, Monitoring, Images), so until the owner adds it the cluster pulls the tag."
+  description = "kube-state-metrics image (issue 149; one small pod next to Prometheus whenever monitoring_enabled is true): `<registry path>:<version tag>` and optionally `@sha256:<digest>`, pinned like prometheus_image. The version and the digest of the multi-architecture index are pinned in monitoring-images.auto.tfvars, and Kubernetes pulls the digest (infra/README.md, \"Monitoring\", \"Images\"); the default here is the same version without a digest."
   type        = string
   default     = "registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.15.0"
 

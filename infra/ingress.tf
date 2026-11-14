@@ -4,7 +4,7 @@
 # Let's Encrypt (HTTP-01 on port 80, TLS-ALPN-01 on 443) and renews on its own. No CRDs, no
 # Helm, no ingress controller. With ingress_custom_host set, the one site block names both hosts
 # (local.ingress_site_address) and Caddy obtains a certificate for each name; the Azure name keeps
-# working. Behind a Cloudflare proxied record only HTTP-01 can succeed (README.md, "Custom host name").
+# working. Behind a Cloudflare proxied record only HTTP-01 can succeed (README.md, "Browser sign-in and custom host name").
 #
 # Caddy terminates TLS and proxies to the ClusterIP Service of the manager. It does NOT
 # authenticate anyone: the manager validates the Entra bearer token itself (src/factory/

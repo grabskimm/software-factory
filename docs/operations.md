@@ -23,7 +23,7 @@ check must send a token.
 
 ## Reaching the pod and the cluster
 
-Where an Azure Container Apps runbook would use `az containerapp exec`, use `kubectl exec`. The cluster uses Microsoft Entra ID with Azure RBAC for Kubernetes and has
+Use `kubectl exec` to get a shell in the pod. The cluster uses Microsoft Entra ID with Azure RBAC for Kubernetes and has
 no local accounts, so you need an Azure role that allows `pods/exec` in the `factory` namespace (for example *Azure Kubernetes
 Service RBAC Writer* scoped to that namespace) and `kubelogin`:
 
@@ -1493,10 +1493,10 @@ are then gone. `FACTORY_LOGS_ARCHIVE=off` turns the copy off.
   `status` for interrupted jobs. There is no second replica to take over, by design.
 * **After every node image, kernel or Kubernetes upgrade, and after every base-image or Claude Code bump, run the sandbox check** from the
   pod: `kubectl -n factory exec deploy/factory -- factory-sandbox-check` must print `all expectations held`. The sandbox passed in this pod
-  with `hostUsers: false`, `procMount: Unmasked` and `appArmorProfile: Unconfined` together (the smaller sets tried failed, two subsets were not tried: `spikes/S1.md`), and the result is tied to the
-  runtime and kernel that were tested (Azure Linux 3, kernel `6.6.159.1-2.azl3`, Kubernetes 1.36.4 on the spike cluster). Do not "fix" a failure by
+  with `hostUsers: false`, `procMount: Unmasked` and `appArmorProfile: Unconfined` together (the smaller sets tried failed, two subsets were not tried), and the result is tied to the
+  runtime and kernel that were tested (Azure Linux 3, kernel `6.6.159.1-2.azl3`, Kubernetes 1.36.4). Do not "fix" a failure by
   enabling `enableWeakerNestedSandbox` or adding capabilities.
-  The same check, and S1 on a node of the worker pool, follows every step of the Cilium and node auto-provisioning change: the Cilium switch reimages every node
+  The same check, run on a node of the worker pool, follows every step of the Cilium and node auto-provisioning change: the Cilium switch reimages every node
   and the first worker node is a new node image (`infra/README.md`, "Safe deployments", "Switching the data plane").
 * **The verification tools are part of the image.** `jq`, `make`, `shellcheck` and `terraform` (for `terraform fmt`
   only) are pinned in the Dockerfile and checked by `image/smoke.sh` as the worker user, so bumping one is a rebuild and a smoke run
@@ -1528,7 +1528,7 @@ are then gone. `FACTORY_LOGS_ARCHIVE=off` turns the copy off.
 | job `pr_ready` with `handoff_status: ci_failed` | CI failed on the head; `docs/handoff.md`, "When CI fails" |
 | every plan/build/preflight call fails at once with `this deployment requires a separate worker identity: set [worker] uid and gid` | the repository config lacks `[worker] uid = 10002` / `gid = 10010` (the image sets `FACTORY_REQUIRE_WORKER_IDENTITY=1`) |
 | every Bash call in a worker fails with a `bwrap` "Unexpected capabilities" error | a worker kept the supervisor's ambient capabilities: the image or `execnocaps` is wrong; run `factory-sandbox-check` |
-| every Bash call of a worker fails with `bwrap: Failed to make / slave: Permission denied` or `Can't mount proc on /newroot/proc`, or `factory-sandbox-check` lists failures | the pod lost one of the three settings the sandbox passed with (`hostUsers: false`, `procMount: Unmasked`, `appArmorProfile: Unconfined`), or a node or Kubernetes upgrade changed how they behave: `kubectl -n factory get pod -o yaml`, compare with `spikes/S1.md`, apply the Terraform again; never weaken the sandbox settings |
+| every Bash call of a worker fails with `bwrap: Failed to make / slave: Permission denied` or `Can't mount proc on /newroot/proc`, or `factory-sandbox-check` lists failures | the pod lost one of the three settings the sandbox passed with (`hostUsers: false`, `procMount: Unmasked`, `appArmorProfile: Unconfined`), or a node or Kubernetes upgrade changed how they behave: `kubectl -n factory get pod -o yaml`, compare with the three settings, apply the Terraform again; never weaken the sandbox settings |
 | `401` from the API | no token, an expired one, a v1 token, or a token for another tenant or audience (the manager accepts v2.0 tokens for its tenant and audiences only); `403`: a valid token without the `Factory.Operator`/`Factory.Viewer` role (`docs/manager.md`) |
 | the pod stays `ContainerCreating` with `failed to set MOUNT_ATTR_IDMAP ... invalid argument` | a volume that cannot be ID-mapped (Azure Files NFS, for example) was added to a pod with `hostUsers: false`; `/data` must stay the Azure Disk PVC |
 | the pod stays `ContainerCreating` with a `Multi-Attach error` or the disk attached elsewhere | the ReadWriteOnce disk is still attached to the previous pod's node; wait for the detach and check `kubectl -n factory describe pod`; there must never be two replicas |

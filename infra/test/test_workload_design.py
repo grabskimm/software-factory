@@ -1,8 +1,8 @@
 """Design guards for the Kubernetes half of infra/ (k8s.tf, ingress.tf).
 
 They read the .tf files as text (standard library only, like check_refs.py) and fail
-when a decision recorded in spikes/S1.md or in the design record is changed by accident:
-the three pod relaxations and nothing more, one replica with Recreate, the Key Vault files kept
+when a design decision is changed by accident:
+the three pod relaxations (hostUsers, procMount, AppArmor) and nothing more, one replica with Recreate, the Key Vault files kept
 out of the Factory container, no Secret objects in Terraform and Caddy's header handling.
 
 Run from the repository root, either as discovery or by dotted module name:
@@ -59,7 +59,7 @@ def attribute_block(text: str, header: str) -> str:
 
 
 class FactoryDeployment(unittest.TestCase):
-    """spikes/S1.md: exactly three pod relaxations, applied through kubernetes_manifest."""
+    """Exactly three pod relaxations (the sandbox needs them), applied through kubernetes_manifest."""
 
     @classmethod
     def setUpClass(cls):
@@ -588,10 +588,58 @@ class ClusterAccessAndMonitoring(unittest.TestCase):
         self.assertIn("azurerm_monitor_data_collection_rule.insights.id", association)
 
 
+class RegistryPull(unittest.TestCase):
+    """The cluster pulls the image through one role assignment on the operator's registry (identity.tf, `acr_pull`). It is the only
+    grant Terraform makes on a registry it does not manage, so a changed role, scope or principal is a security change that must
+    show up here: AcrPull (never push or delete), scoped to the registry (not the resource group or the subscription), given to the
+    identity AKS creates for the kubelet (not to the pod's workload identity), and the only assignment scoped to the registry."""
+
+    PULL = 'resource "azurerm_role_assignment" "acr_pull"'
+
+    @classmethod
+    def setUpClass(cls):
+        cls.pull = block_text("identity.tf", cls.PULL)
+        cls.assignments = {}  # "file:name" -> block text, for every role assignment of every .tf file
+        for path in sorted(INFRA.glob("*.tf")):
+            for name in re.findall(r'(?m)^resource "azurerm_role_assignment" "([\w-]+)"', code(path.name)):
+                cls.assignments[f"{path.name}:{name}"] = block_text(path.name, f'resource "azurerm_role_assignment" "{name}"')
+
+    def attribute(self, name: str) -> str:
+        found = re.search(rf"(?m)^\s*{name}\s*=\s*(.+?)\s*$", self.pull)
+        self.assertIsNotNone(found, f"acr_pull has no `{name}`")
+        return found.group(1)
+
+    def test_it_grants_acr_pull_on_the_registry_to_the_kubelet_identity(self):
+        self.assertEqual(self.attribute("scope"), "data.azurerm_container_registry.this.id")
+        self.assertEqual(self.attribute("role_definition_name"), '"AcrPull"')
+        self.assertEqual(self.attribute("principal_id"), "azurerm_kubernetes_cluster.this.kubelet_identity[0].object_id")
+        self.assertEqual(self.attribute("principal_type"), '"ServicePrincipal"')
+        self.assertNotIn("workload", self.pull, "the pod's own identity does not pull images: the nodes do")
+
+    def test_it_is_the_only_role_assignment_scoped_to_the_registry(self):
+        self.assertIn("identity.tf:acr_pull", self.assignments)
+        on_registry = sorted(key for key, body in self.assignments.items() if "azurerm_container_registry" in body)
+        self.assertEqual(on_registry, ["identity.tf:acr_pull"])
+        every_file = "\n".join(code(path.name) for path in sorted(INFRA.glob("*.tf")))
+        self.assertEqual(len(re.findall(r"scope\s*=\s*data\.azurerm_container_registry\.this\.id", every_file)), 1)
+        for key, body in self.assignments.items():
+            if key != "identity.tf:acr_pull":
+                with self.subTest(assignment=key):
+                    self.assertNotRegex(body, r'role_definition_name\s*=\s*"Acr', "no other assignment grants a registry role")
+
+    def test_the_registry_is_looked_up_by_name_and_never_managed(self):
+        lookup = block_text("identity.tf", 'data "azurerm_container_registry" "this"')
+        self.assertRegex(lookup, r"(?m)^\s*name\s*=\s*var\.acr_name\s*$")
+        self.assertRegex(lookup, r"(?m)^\s*resource_group_name\s*=\s*var\.acr_resource_group_name\s*$")
+        for path in sorted(INFRA.glob("*.tf")):
+            with self.subTest(file=path.name):
+                self.assertNotRegex(code(path.name), r'resource\s+"azurerm_container_registry\w*"')
+
+
 class ClusterGuardDocumentation(unittest.TestCase):
-    """infra/README.md ("Safe deployments") is where an operator learns about the cluster guard: what it refuses, which label
-    and attestation lift it and how the flip is done. The repository ships no workflow that runs the guard (an operator's
-    own pipeline runs `tools/infra_cluster_guard.py`), so what is pinned is the text that the guard's own messages cite."""
+    """infra/README.md ("Safe deployments", "Switching the data plane") is where an operator learns about the cluster guard: what it
+    refuses, which label and attestation lift it and how the flip is done. The repository ships no workflow that runs the guard (an
+    operator's own pipeline runs `tools/infra_cluster_guard.py`), so what is pinned is the text that the guard's own messages cite."""
 
     @classmethod
     def setUpClass(cls):
@@ -601,7 +649,7 @@ class ClusterGuardDocumentation(unittest.TestCase):
         # the needles are phrases, not line breaks: the README may be re-wrapped
         return " ".join(self.readme[self.readme.index(start) : self.readme.index(end)].split())
 
-    def test_the_readme_documents_the_guard_the_label_the_attestation_and_the_flip_procedure(self):
+    def test_the_readme_documents_the_guard_the_label_and_the_attestation(self):
         safe = self.section("## Safe deployments", "## Roll back")
         for needle in (
             "**Cluster guard.**",
@@ -615,19 +663,27 @@ class ClusterGuardDocumentation(unittest.TestCase):
             "`infra-cluster-change`",
             "label `infra-cluster-change`",
             "drain gate",
-            # the flip procedure: the values live in INFRA_TFVARS, are set just before the manual run, and stay set
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, safe)
+
+    def test_the_readme_documents_the_flip_procedure(self):
+        # the flip procedure: the values live in INFRA_TFVARS, are set just before the manual run, and stay set
+        flip = self.section("### Switching the data plane", "### Pod backend")
+        for needle in (
             "live in `INFRA_TFVARS`, not in a pull request",
             "immediately before the manual `stage=cluster`",
             "**stays set**",
             "no action on the Deployment",
+            "drain gate",
+            "`cluster_snapshots_taken`",
         ):
             with self.subTest(needle=needle):
-                self.assertIn(needle, safe)
-        self.assertIn("36. **Cluster guard", self.readme[self.readme.index("## UNVERIFIED") :])
+                self.assertIn(needle, flip)
 
     def test_the_first_apply_names_the_stages_the_guard_reads_and_the_four_target_lines(self):
-        # the former needle "the four `-target` lines are as before" lived in a workflow description; the stages are now
-        # defined in "First apply", which is also where the addresses of stage=cluster are listed (tests/test_infra_cluster_guard.py)
+        # the stages are defined in "First apply", which is also where the addresses of stage=cluster are listed
+        # (tests/test_infra_cluster_guard.py)
         first = self.section("## First apply", "## Call the API")
         for needle in (
             "`tools/infra_cluster_guard.py` (`GUARD_STAGE`)",

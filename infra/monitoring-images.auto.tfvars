@@ -2,7 +2,7 @@
 # digest). Terraform loads *.auto.tfvars on its own; your own -var-file overrides these values, and
 # variables.tf holds the same versions as digest-less defaults.
 #
-# How the digests were taken (README.md, "Monitoring"): the version tags were listed on the registry and
+# How the digests were taken (README.md, "Monitoring", "Images"): the version tags were listed on the registry and
 # the digest of the multi-architecture index of each was read from the registry API
 # (the Docker-Content-Digest header of GET /v2/<repository>/manifests/<tag>). To move to another
 # version, change both the tag and the digest here in a reviewed pull request.

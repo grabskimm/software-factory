@@ -120,16 +120,36 @@ served on a separate listener that is off unless `FACTORY_MANAGER_METRICS_PORT` 
 `FACTORY_MANAGER_METRICS_PORT=9464 factory-manager`, then `curl http://127.0.0.1:9464/metrics`
 (loopback needs no token; any other host needs `FACTORY_MANAGER_METRICS_TOKEN`).
 
-## Dashboard (read-only Grafana)
+## Dashboards (read-only Grafana)
 
-A read-only Grafana dashboard of a running Factory is planned; it shows the `factory-overview` board: jobs by
-status, jobs and runs finished per day, spend, plan-to-pull-request time, time per phase and worker use. The
-board is defined in `infra/monitoring/dashboards/factory-overview.json` (it expects a Prometheus data source with
-the UID `factory-prometheus` and the manager's metrics scraped as the job `factory-manager`), and
-[docs/metrics.md](docs/metrics.md) describes every series.
+The three Grafana dashboards of the maintainer's own deployment are public and read-only at
+**<https://factory.mendelg.tech/grafana>** (the link opens `Factory overview`; the other two are in the
+dashboard list). A visitor cannot change a dashboard, the data source or any setting:
 
-[Factory dashboard (read-only, Grafana): placeholder, not live yet](https://grafana.example.org/d/factory-overview)
-<!-- TODO(owner): replace the placeholder URL above with the public read-only Grafana dashboard once it exists -->
+* `Factory overview` (`factory-overview`): jobs by status, jobs and runs finished per day, spend, time from
+  plan to pull request, time per phase and worker use. It needs only the manager's own metrics.
+* `Factory resources and manager` (`factory-resources`): the manager pod's memory and CPU against its limits, memory
+  per session, disk and history size, manager API requests, latency and 401/403 counts.
+* `Factory node auto-provisioning` (`factory-nap`): worker pods and the nodes of node auto-provisioning (pending,
+  unschedulable, evicted) and the time from pod creation to a ready node.
+
+The boards are defined in `infra/monitoring/dashboards/`, and [docs/metrics.md](docs/metrics.md) describes every
+series. Publishing them read-only is the Terraform flag `grafana_anonymous_viewer_enabled` (off by default). Read
+"Publishing the dashboards read-only" in [docs/metrics.md](docs/metrics.md) before setting it: anonymous read access
+reaches the whole Prometheus data source, not only the panels (repository names, spend, pod and node names, alert rules).
+
+**A local run does not set up metrics or Grafana.** `factory-manager` only serves the Prometheus text endpoint, and
+only when `FACTORY_MANAGER_METRICS_PORT` is set (above); nothing starts a Prometheus or a Grafana. To look at the
+boards for a local manager:
+
+1. Run a Prometheus that scrapes `http://127.0.0.1:9464/metrics` (the default path) as the job `factory-manager`
+   (the `Manager scraped` panel reads `up{job="factory-manager"}`).
+2. Give a Grafana a Prometheus data source with the fixed UID `factory-prometheus` (the dashboard JSON hard-codes it
+   and has no import prompt), for example with a provisioning file that sets `uid: factory-prometheus`.
+3. Import `infra/monitoring/dashboards/factory-overview.json`. `factory-resources` also works for its manager panels
+   (API requests, history, disk), but its pod memory and CPU rows read the kubelet's container series, and
+   `factory-nap` reads Kubernetes series that exist only on the AKS reference deployment, where `infra/` deploys
+   Prometheus and Grafana with `monitoring_enabled = true`.
 
 ## Repository layout
 
@@ -138,14 +158,13 @@ src/factory/               the package: CLI, supervisor, planner, runner, manage
 tests/                     the unit tests
 tools/                     token broker, sandbox end-to-end check, reports over run directories, and optional
                            operator scripts: infra_deploy_gate.py, infra_cluster_guard.py, policy_matrix.py,
-                           live_checks.py, live_reports.py, live_recording.py, live_pod_probe.py, local_pod_e2e/
-scripts/                   shell helpers that register a repository with a deployment
+                           effort_ab.py (an effort A/B harness)
+scripts/                   helpers that register a repository with a deployment
 handoff/                   the GitHub ruleset and auto-merge workflow an operator applies (nothing installs them)
 docs/                      the reference documentation (index below)
 image/ Dockerfile          the pinned container image of the optional deployment
 managed-settings.json      the Claude Code sandbox baseline, copied into the image
 infra/                     Terraform of the optional Azure/AKS reference deployment, with offline tests in infra/test
-spikes/                    the sandbox, storage and identity spikes behind that deployment, with their recorded results
 .github/workflows/ci.yml   the CI: compile, unit tests, token broker, infra offline checks (it deploys nothing)
 .claude/skills/factory/    a Claude Code skill for agents that operate Factory
 ```
@@ -161,8 +180,8 @@ spikes/                    the sandbox, storage and identity spikes behind that 
 * [docs/metrics.md](docs/metrics.md): the Prometheus metrics and the dashboards.
 * [docs/verification-tiers.md](docs/verification-tiers.md): what is verified in the pod, in CI and in isolated runners.
 * [docs/capacity.md](docs/capacity.md): the worker budget, the memory guard and sizing.
-* [docs/pod-backend.md](docs/pod-backend.md) (experimental, off by default), [docs/pod-backend-runbook.md](docs/pod-backend-runbook.md) and [docs/pod-backend-local-e2e.md](docs/pod-backend-local-e2e.md): the optional pod per worker session, its runbook and its local end-to-end check.
-* [infra/README.md](infra/README.md), [image/README.md](image/README.md) and [spikes/README.md](spikes/README.md): the optional AKS reference deployment, its image and its spikes.
+* [docs/pod-backend.md](docs/pod-backend.md) (experimental, off by default): the optional pod per worker session.
+* [infra/README.md](infra/README.md) and [image/README.md](image/README.md): the optional AKS reference deployment and its image.
 
 ## Claude Code skill
 

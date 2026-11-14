@@ -251,12 +251,10 @@ COPY --from=toolchains /out/opt/toolchains /opt/toolchains
 # file /dir/file also applies 0644 to a parent directory that the COPY creates,
 # which would make /etc/claude-code unreadable for the worker. Existing directories
 # keep their mode, so the result no longer depends on the BuildKit version.
-RUN install -d -o root -g root -m 0755 /etc/claude-code /opt/factory-tools /opt/factory-spikes
+RUN install -d -o root -g root -m 0755 /etc/claude-code /opt/factory-tools
 COPY --chmod=0755 image/entrypoint.sh /usr/local/bin/factory-entrypoint
 COPY --chmod=0755 image/sandbox-check.sh /usr/local/bin/factory-sandbox-check
 COPY --chmod=0644 tools/sandbox_e2e.py /opt/factory-tools/sandbox_e2e.py
-# The spike procedures (spikes/README.md) run inside the container.
-COPY --chmod=0755 spikes/s1_bwrap.sh spikes/s2_nfs.py spikes/s3_uid_split.py spikes/s3b_data_tree.py /opt/factory-spikes/
 # Non-overridable Claude Code baseline; a test keeps it equal to
 # factory.phases.managed_settings().
 COPY --chmod=0644 managed-settings.json /etc/claude-code/managed-settings.json

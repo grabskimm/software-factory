@@ -40,7 +40,7 @@ scrape_configs:
     authorization:
       type: Bearer
       credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
-    # The kubelet's serving certificate is not verified (README.md, UNVERIFIED): the token that is sent
+    # The kubelet's serving certificate is not verified (a deliberate choice for the kubelet's self-signed certificate): the token that is sent
     # can only read node metrics.
     tls_config:
       insecure_skip_verify: true

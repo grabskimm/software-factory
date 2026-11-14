@@ -19,7 +19,7 @@ the execution switch and the manager instance id).
 
 Every number marked PROVISIONAL (resource classes, size limits, caps, timings, sidecar uids) is a
 first estimate that a read-only production check and a throwaway mirror replace (the footprint
-records of ``status --json`` and the measurements in the runbook); nothing was measured for this
+records of ``status --json`` and a measurement on a real deployment); nothing was measured for this
 file.
 
 Standard library only and no relative import: ``infra/test/test_pod_contract.py`` loads this file

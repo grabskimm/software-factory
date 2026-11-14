@@ -5,19 +5,21 @@ runs: the manager (`python -m factory.manager`), the per-repository supervisors
 (`factory ...`) and the Claude Code workers (`claude -p`) as subprocesses. Linux
 amd64 only.
 
-**Whether this image is deployable is decided by spikes S1, S2 and S3** (see
-`spikes/README.md`): S1 bubblewrap sandbox with `failIfUnavailable`, S2 git worktrees,
-`os.replace` and `flock` on the data store, S3 `Popen(user=worker)` with ambient
-`CAP_SETUID`/`CAP_SETGID`/`CAP_KILL`, the worker left with no capabilities and unable to read
-the supervisor's `/proc/<pid>/environ`. A FAIL on any of them stops the deployment; nothing in
-this image weakens the sandbox to get around one. A build and `image/smoke.sh` prove that the image builds and that its
-contents and privilege model are right; they cannot prove those three runtime facts.
+**Whether this image is deployable depends on three runtime facts** that only a real cluster
+shows: the bubblewrap sandbox starts with `failIfUnavailable`; git worktrees, `os.replace` and
+`flock` work on the data store; and `Popen(user=worker)` works with the ambient
+`CAP_SETUID`/`CAP_SETGID`/`CAP_KILL`, the worker is left with no capabilities and cannot read the
+supervisor's `/proc/<pid>/environ`. A failure of any of them stops the deployment; nothing in this
+image weakens the sandbox to get around one. A build and `image/smoke.sh` prove that the image builds
+and that its contents and privilege model are right; they cannot prove those three runtime facts.
+`factory-sandbox-check` (below) is the check for the first one, run inside the pod.
 
-The recorded results (2026-11-06, this image unchanged): **S1 failed on ACA and passed on AKS**, where
-the pod needs `hostUsers: false`, `procMount: Unmasked` and `appArmorProfile: Unconfined`; S2 passed on
-Azure Files NFS (ACA) and on an Azure Disk (AKS), and since a `hostUsers: false` pod cannot mount NFS,
-`/data` is a disk; S3 and S3b passed on both. The image needs nothing different for any of this. See
-`spikes/S1.md` to `S3.md`.
+What was found on the reference deployment (2026-11-06, this image unchanged): the sandbox did not start
+on Azure Container Apps and starts on AKS, where the pod needs `hostUsers: false`, `procMount:
+Unmasked` and `appArmorProfile: Unconfined`; the data store works on Azure Files NFS (Container Apps)
+and on an Azure Disk (AKS), and since a `hostUsers: false` pod cannot mount NFS, `/data` is a disk;
+the uid split and the capability model work on both. The image needs nothing different for any of
+this.
 
 ## What is in the image
 
@@ -35,7 +37,6 @@ Azure Files NFS (ACA) and on an Azure Disk (AKS), and since a `hostUsers: false`
 | `/etc/claude-code/managed-settings.json` | the repository's `managed-settings.json` (a test keeps it equal to `factory.phases.managed_settings()`) | root, 0644 |
 | `/usr/local/bin/factory-entrypoint` | `image/entrypoint.sh` | root, 0755 |
 | `/usr/local/bin/factory-sandbox-check` | `image/sandbox-check.sh` | root, 0755 |
-| `/opt/factory-spikes/` | the spike scripts S1 to S3 (`spikes/README.md` says how to run them) | root, 0755 |
 | `/usr/share/factory-image/versions.txt` | what was installed (git, gh, claude, bwrap, ...) | root |
 | `/data`, `/config` | mount points (`FACTORY_DATA`, `FACTORY_CONFIG`) | prepared by the entrypoint |
 
@@ -111,7 +112,7 @@ Tier 1 is as far as the supervisor image goes. These are absent on purpose, and
 | Absent | Why |
 |---|---|
 | `docker` (client) and `dockerd` (daemon), or Docker-in-Docker | needs privileges and a daemon next to the Anthropic key, the Key Vault identity and the GitHub App credentials. Explicitly not planned |
-| any privileged container, container runtime socket or extra capability | the pod's one relaxation is the three sandbox settings recorded in `spikes/S1.md`; nothing is added for tooling |
+| any privileged container, container runtime socket or extra capability | the pod's one relaxation is the three sandbox settings (`hostUsers: false`, `procMount: Unmasked`, `appArmorProfile: Unconfined`); nothing is added for tooling |
 | `trivy` | a scanner with its own vulnerability database and network access; the scan runs outside the image, against the built image |
 | `actionlint` | the newest release (1.7.12) is built with Go 1.26.1, and a Trivy scan of the image on this change reported 24 fixable HIGH findings in that Go standard library (`crypto/x509`, `crypto/tls`, `net/http`, `net/mail` and others; the fixed Go versions go up to 1.26.10 and 1.27.3). A blocking scan would refuse the push, no newer release exists to bump to, and a suppression is not allowed. Lint workflows with `actionlint` in your own CI (tier 2). Bring it back only with a release built with a fixed Go and a clean Trivy table |
 | browsers (Playwright and the like) | hundreds of MB and many CVEs; a browser test belongs in your own CI (tier 2) |
@@ -147,7 +148,7 @@ Terraform variable `image_digest` to that digest** (`infra/README.md`, "Promote 
 What only a real build and the cluster can show: that `docker build` succeeds end to end (apt,
 Debian package versions, `COPY --chmod`, bind mounts), that the smoke checks of the tier 1 tools
 pass as the worker inside the image, that Trivy is clean for the Go binaries, the size of the real
-image, and everything in S1, S2 and S3. The tools reach a pod only after the image digest is
+image, and the three runtime facts at the top of this page. The tools reach a pod only after the image digest is
 promoted and applied.
 
 ## What "pinned" means
@@ -234,7 +235,7 @@ explain steps 1 and 2:
    path, never an environment value, and the script then tests whether uid 10001 can
    write `repos`. On AKS `/data` is an Azure Disk (ext4) mounted into a pod with `hostUsers: false`;
    container root is then an unprivileged node id, and the `chown` to 10001:10010 works on the
-   ID-mapped mount (spikes S2 and S3b). An NFS volume would not mount at all there (`spikes/S2.md`).
+   ID-mapped mount. An NFS volume would not mount at all there.
 2. exports `HOME=/home/factory`, then `exec setpriv --reuid=10001 --regid=10001
    --groups=10010 --inh-caps/--ambient-caps/--bounding-set = cap_setuid,cap_setgid,cap_kill
    --no-new-privs -- "$@"`.
@@ -250,9 +251,8 @@ only.) The smoke test checks `00000000000000e0`.
 Why these three: the supervisor starts each worker with `Popen(user=, group=,
 extra_groups=[])`, which needs `setuid`, `setgid` and `setgroups`; and it must be able
 to kill the worker's process group (lease loss, timeout, drain, purge: invariant 11),
-which `kill(2)` allows between two different UIDs only with `CAP_KILL`. Reproduced with
-`spikes/s3_uid_split.py` on a real kernel: with only setuid and setgid, `killpg` of the
-worker's group fails with `EPERM`. Why the uid split exists: a worker that runs as a
+which `kill(2)` allows between two different UIDs only with `CAP_KILL`. Reproduced on a real
+kernel: with only setuid and setgid, `killpg` of the worker's group fails with `EPERM`. Why the uid split exists: a worker that runs as a
 different uid cannot read the supervisor's `/proc/<pid>/environ` (the App key, the
 installation token, the Anthropic key) or its files.
 
@@ -265,7 +265,7 @@ through a setuid or file-capability binary (`su`, `mount`, ...). It does not rem
 ambient capabilities, and bubblewrap does not need privilege here (it creates an
 unprivileged user namespace and sets no_new_privs itself). The smoke test checks that
 `/usr/bin/bwrap` is not setuid, because a setuid bwrap and no_new_privs do not mix.
-If spike S1 fails only with no_new_privs, the flag is in one place in
+If the sandbox check fails only with no_new_privs, the flag is in one place in
 `entrypoint.sh`.
 
 ### Workers shed the capabilities (`src/factory/execnocaps.py`)
@@ -299,10 +299,10 @@ capabilities and no_new_privs (a shell opened by `kubectl exec` is root, which
 is neither what a worker sees nor what bubblewrap needs to work as):
 
 ```sh
-kubectl -n factory exec deploy/factory -- factory-sandbox-check    # spike S1: exit 0 = every expectation held
+kubectl -n factory exec deploy/factory -- factory-sandbox-check    # exit 0 = every expectation held
 ```
 
-That command passed in the AKS pod with the three settings of the S1 record together (`hostUsers: false`,
+That command passed in the AKS pod with the three settings together (`hostUsers: false`,
 `procMount: Unmasked`, `appArmorProfile: Unconfined`; the smaller sets tried failed, two subsets were not tried). A pod without them can show
 `bwrap: Failed to make / slave: Permission denied` or `Can't mount proc on /newroot/proc`.
 
@@ -350,10 +350,10 @@ Node.js release, not by a suppression.
 | Node.js 22 | **Substitution.** A digest-pinned `node:22-bookworm-slim` from MCR would have been the first choice. The MCR mirror has no Node 22 tag (newest `20-bookworm-slim`; every `22*` tag returns 404). The same Docker official image digest (`sha256:5ec23b7c622b00547753bc6ffd78085dd868a68aeb41c8e0a1418f033e13d96d` for `22-bookworm-slim` on 2026-11-06) is served by Docker Hub and mirror.gcr.io, and public.ecr.aws answered "TOOMANYREQUESTS" from a shared IP, so a registry pull would bring back the anonymous-limit problem MCR was chosen to avoid. The stage installs the official tarball (the same thing that image installs), pinned by sha256: Node.js 22.23.4, 2026-10-20 | https://mcr.microsoft.com/v2/mirror/docker/library/node/tags/list ; https://nodejs.org/dist/v22.23.4/SHASUMS256.txt |
 | gh | 2.103.3 (2026-10-26), highest `v2.*` tag, `gh_2.103.3_linux_amd64.tar.gz` sha256 `4c806978...dd91d` | https://github.com/cli/cli/releases/tag/v2.103.3 ; https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_checksums.txt |
 | actionlint | **Left out of the image.** 1.7.12 is the newest release on 2026-11-07 (archive timestamp 2026-03-30) and was built with Go 1.26.1. The sha256 `8aca8db9...3d8` had been computed from the downloaded `actionlint_1.7.12_linux_amd64.tar.gz` and equals the line in the release's checksums file, and the stage built, but a Trivy scan of the image on this change reported 24 fixable HIGH findings in its Go standard library, so the tool was removed rather than suppressed (see "Deliberately not in the image"). An `actionlint` job in your CI keeps its own pin | https://github.com/rhysd/actionlint/releases/tag/v1.7.12 ; https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_checksums.txt |
-| terraform | 1.17.1 (archive timestamp 2026-10-28), `terraform_1.17.1_linux_amd64.zip` sha256 `46386280...061`, computed from the downloaded file and equal to the upstream `SHA256SUMS` line. Built with Go 1.26.10; the binary is about 129 MB. The offline checks of the reference deployment (`infra/README.md`) used 1.13.5, built with Go 1.24.5; a newer Go standard library is less likely to carry fixable findings, which this pin is chosen for (not confirmed by a scan). Only `terraform fmt` is used, so the version difference does not matter for what a worker does with it | https://releases.hashicorp.com/terraform/1.17.1/ ; https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_SHA256SUMS |
+| terraform | 1.17.1 (archive timestamp 2026-10-28), `terraform_1.17.1_linux_amd64.zip` sha256 `46386280...061`, computed from the downloaded file and equal to the upstream `SHA256SUMS` line. Built with Go 1.26.10; the binary is about 129 MB. A newer Go standard library is less likely to carry fixable findings, which this pin is chosen for (not confirmed by a scan). Only `terraform fmt` is used, so the version difference does not matter for what a worker does with it | https://releases.hashicorp.com/terraform/1.17.1/ ; https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_SHA256SUMS |
 | Claude Code | 2.1.318 through npm, lockfile integrity | https://code.claude.com/docs/en/setup ; https://registry.npmjs.org/@anthropic-ai/claude-code/2.1.318 |
 | `--ignore-scripts` | used; reason above | reproduced locally |
-| capability mask and set | `0xc00` is wrong; setuid+setgid is `0xc0`, and with `CAP_KILL` (needed for `kill(2)` across UIDs, found with `spikes/s3_uid_split.py`) it is `0xe0`. The worker sheds them (`execnocaps`). | `capabilities(7)`: CAP_KILL 5, CAP_SETGID 6, CAP_SETUID 7 |
+| capability mask and set | `0xc00` is wrong; setuid+setgid is `0xc0`, and with `CAP_KILL` (needed for `kill(2)` across UIDs) it is `0xe0`. The worker sheds them (`execnocaps`). | `capabilities(7)`: CAP_KILL 5, CAP_SETGID 6, CAP_SETUID 7 |
 | setpriv options | `--reuid --regid --groups --clear-groups --inh-caps --ambient-caps --bounding-set --no-new-privs` all exist in util-linux 2.38.1 (bookworm) | https://raw.githubusercontent.com/util-linux/util-linux/v2.38.1/sys-utils/setpriv.1.adoc |
 | gh environment | `GH_NO_UPDATE_NOTIFIER`, `GH_PROMPT_DISABLED` | https://raw.githubusercontent.com/cli/cli/v2.103.3/pkg/cmd/root/help_topic.go |
 | Python | Debian `python3` is 3.11, so `pip-compile` runs on 3.11; wheels `cp311-abi3-manylinux_2_34_x86_64` and friends | `cryptography` 50.0.2, `cffi` 2.1.1, `pycparser` 3.12 on PyPI |
@@ -361,7 +361,7 @@ Node.js release, not by a suppression.
 
 ## Bumping a pin
 
-Always rebuild, run `bash image/smoke.sh`, and re-run S1 (`factory-sandbox-check`) on
+Always rebuild, run `bash image/smoke.sh`, and re-run the sandbox check (`factory-sandbox-check`) on
 AKS after changing the base image or Claude Code (and after a node image or Kubernetes upgrade).
 
 * **Base digest.** `curl -sI -H 'Accept: application/vnd.oci.image.index.v1+json'
@@ -419,6 +419,6 @@ BuildKit 0.20.2 (Docker 28.0.4) gives 0755. The same applies to `/opt/factory-to
 `managed-settings.json` becomes unreadable for the supervisor and the workers; `image/smoke.sh` catches it
 (2 FAIL on "managed-settings.json readable"). A build passes only while the builder has BuildKit 0.20.x and will
 fail when the builder moves on. Until the Dockerfile is changed, build the image with a
-`docker-container` builder pinned to `moby/buildkit:v0.20.2` (the spike image was built that way; `az acr
+`docker-container` builder pinned to `moby/buildkit:v0.20.2` (the reference image was built that way; `az acr
 build` is not an option, its classic builder rejects the Dockerfile's `--mount`), and run `bash image/smoke.sh`
 on whatever you build. Changing the Dockerfile so that the build no longer depends on that BuildKit version is an open decision.

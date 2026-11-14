@@ -31,7 +31,7 @@
 # under POOL_OBJECTS in tools/infra_cluster_guard.py with the other objects of the namespace.
 #
 # UNVERIFIED (docs/pod-backend.md): that the launcher token can create and delete a pod and a Secret in the namespace and cannot
-# get or list Secrets or exec (runbook, slice 21); that a plan run as the plan identity may read these two kinds (the custom role
+# get or list Secrets or exec; that a plan run as the plan identity may read these two kinds (the custom role
 # already carries roles/read and rolebindings/read since slice 15b: no new data action is needed); that the provider accepts the
 # empty `api_groups` entry of the core group.
 

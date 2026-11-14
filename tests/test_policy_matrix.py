@@ -1,6 +1,6 @@
 """tools/policy_matrix.py against a fake kubectl (slice 15b of the pod backend, docs/pod-backend.md).
 
-The tool replays the golden pods and Secrets and every mutation against a real API server (a kind cluster, tools/local_pod_e2e/). Here the
+The tool replays the golden pods and Secrets and every mutation against a real API server (for example a kind cluster). Here the
 "server" is `FakeCluster`: a stand-in for `subprocess.run` that decodes the request like kubectl would send it, applies the
 emulation of the API server's defaulting from tests/test_policy_cel.py and answers with the CEL model's verdict in the format of
 the real denial message. Nothing here calls a cluster, a network or a real kubectl, and nothing sleeps (the pause is injected).

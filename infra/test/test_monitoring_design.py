@@ -2,7 +2,8 @@
 
 Standard library only, like the other infra tests: they read the .tf, .tftpl and .json files as text. They fail
 when a decision of issue 48 is changed by accident: everything is off by default, each component reads one
-secret of its own, nothing is anonymous, the ingress knows only the /grafana/ path, every image is pinned, every
+secret of its own, nobody is anonymous unless the owner sets grafana_anonymous_viewer_enabled (and then only as a
+Viewer who cannot edit), the ingress knows only the /grafana/ path, every image is pinned, every
 metric an alert or a dashboard uses is in the catalogue (docs/metrics.md), and no webhook is ever invented.
 
 Run from the repository root, either as discovery or by dotted module name:
@@ -63,6 +64,72 @@ def call_arguments(text: str, header: str) -> str:
         if depth == 0:
             return text[start:position]
     raise AssertionError(f"unbalanced after {header!r}")
+
+
+TEMPLATE_DIRECTIVE = re.compile(r"%\{(~?)\s*(if\s+(\w+)|else|endif)\s*(~?)\}")
+
+
+def render_template(text: str, values: dict) -> str:
+    """Render a .tftpl the way templatefile() does, for the part of the template language grafana.ini.tftpl uses.
+
+    That is `${name}`, and `%{ if name }`, `%{ else }` and `%{ endif }` with an optional `~` strip marker on either side of a
+    directive (it removes the whitespace, newlines included, of the literal text next to it). Anything else (a loop, an
+    expression, an unknown name) raises, so a construct this function does not know cannot be rendered wrongly and pass.
+    A boolean renders as `true` or `false`, like Terraform's conversion of a bool to a string.
+    """
+    tokens = []  # ("text", str) | ("if", name) | ("else",) | ("endif",)
+    position = 0
+    for found in TEMPLATE_DIRECTIVE.finditer(text):
+        tokens.append(["text", text[position : found.start()]])
+        kind = found.group(2).split()[0]
+        tokens.append([kind, found.group(3), bool(found.group(1)), bool(found.group(4))])
+        position = found.end()
+    tokens.append(["text", text[position:]])
+    for index, token in enumerate(tokens):
+        if token[0] == "text":
+            continue
+        if token[2] and index > 0:
+            tokens[index - 1][1] = tokens[index - 1][1].rstrip()
+        if token[3] and index + 1 < len(tokens):
+            tokens[index + 1][1] = tokens[index + 1][1].lstrip()
+    output = []
+    frames = []  # (condition, in_else)
+    for token in tokens:
+        kind = token[0]
+        if kind == "if":
+            value = values[token[1]]
+            if not isinstance(value, bool):
+                raise AssertionError(f"%{{ if {token[1]} }} needs a bool, got {value!r}")
+            frames.append([value, False])
+        elif kind == "else":
+            frames[-1][1] = True
+        elif kind == "endif":
+            frames.pop()
+        elif all(condition != in_else for condition, in_else in frames):
+            output.append(token[1])
+    if frames:
+        raise AssertionError("an %{ if } without %{ endif }")
+    rendered = re.sub(r"\$\{(\w+)\}", lambda found: str(values[found.group(1)]).lower() if isinstance(values[found.group(1)], bool) else str(values[found.group(1)]), "".join(output))
+    if "${" in rendered or "%{" in rendered:
+        raise AssertionError("a template construct this renderer does not know is left in the text")
+    return rendered
+
+
+def template_names(text: str) -> set:
+    """Every name a template reads: `${name}` and the condition of each `%{ if name }`."""
+    return set(re.findall(r"\$\{(\w+)\}", text)) | {found.group(3) for found in TEMPLATE_DIRECTIVE.finditer(text) if found.group(3)}
+
+
+def render_grafana_ini(anonymous_viewer: bool) -> str:
+    """grafana.ini.tftpl with the values monitoring.tf passes, for one setting of grafana_anonymous_viewer_enabled."""
+    values = {"port": "3000", "domain": "api.example.test", "client_id": "client-id", "tenant_id": "tenant-id", "operator_role": "Editor", "anonymous_viewer": anonymous_viewer}
+    return render_template((MON / "grafana.ini.tftpl").read_text(encoding="utf-8"), values)
+
+
+def parse_ini(text: str) -> configparser.ConfigParser:
+    config = configparser.ConfigParser(interpolation=None, strict=True, comment_prefixes=(";", "#"), inline_comment_prefixes=None)
+    config.read_string(text)
+    return config
 
 
 def catalogue_names() -> set:
@@ -384,7 +451,7 @@ class KubeStateMetrics(unittest.TestCase):
         self.assertRegex(default, r"^registry\.k8s\.io/kube-state-metrics/kube-state-metrics:v[0-9]+\.[0-9]+\.[0-9]+$")
         tfvars = (INFRA / "monitoring-images.auto.tfvars").read_text(encoding="utf-8")
         pinned = re.search(r'(?m)^kube_state_metrics_image\s*=\s*"([^"]+)"', tfvars)
-        if pinned:  # the digest could not be read offline (README.md): once it is added it must be the same version as the default
+        if pinned:  # the digest is pinned in monitoring-images.auto.tfvars (README.md, "Monitoring", "Images"): it must be the same version as the default
             self.assertRegex(pinned.group(1), rf"^{re.escape(default)}@sha256:[0-9a-f]{{64}}$")
         else:
             self.assertIn("NO digest is pinned yet", tfvars)
@@ -570,16 +637,14 @@ class GrafanaConfiguration(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        text = (MON / "grafana.ini.tftpl").read_text(encoding="utf-8")
-        cls.template = text
-        values = {"port": "3000", "domain": "api.example.test", "client_id": "client-id", "tenant_id": "tenant-id", "operator_role": "Editor"}
-        rendered = re.sub(r"\$\{(\w+)\}", lambda found: values[found.group(1)], text)
-        cls.config = configparser.ConfigParser(interpolation=None, strict=True, comment_prefixes=(";", "#"), inline_comment_prefixes=None)
-        cls.config.read_string(rendered)
+        # The default rendering: grafana_anonymous_viewer_enabled false. GrafanaAnonymousViewer renders the other mode.
+        cls.template = (MON / "grafana.ini.tftpl").read_text(encoding="utf-8")
+        cls.rendered = render_grafana_ini(anonymous_viewer=False)
+        cls.config = parse_ini(cls.rendered)
 
     def test_every_placeholder_is_supplied_by_monitoring_tf(self):
         supplied = call_arguments(code("monitoring.tf"), "grafana_ini_text = templatefile(")
-        self.assertEqual(set(re.findall(r"\$\{(\w+)\}", self.template)), set(re.findall(r"(?m)^\s*(\w+)\s*=", supplied)))
+        self.assertEqual(template_names(self.template), set(re.findall(r"(?m)^\s*(\w+)\s*=", supplied)))
 
     def test_it_is_served_from_the_sub_path_of_the_api_host(self):
         server = self.config["server"]
@@ -654,7 +719,7 @@ class GrafanaConfiguration(unittest.TestCase):
         block = block_text("variables.tf", 'variable "grafana_operator_role"')
         self.assertRegex(block, r'default\s*=\s*"Editor"')
         self.assertIn('contains(["Editor", "Admin"], var.grafana_operator_role)', block)
-        self.assertIn("operator_role = var.grafana_operator_role", code("monitoring.tf"))
+        self.assertRegex(code("monitoring.tf"), r"operator_role\s*=\s*var\.grafana_operator_role\b")
 
     def test_dashboards_and_the_datasource_are_provisioned_and_not_editable(self):
         text = code("monitoring.tf")
@@ -667,6 +732,218 @@ class GrafanaConfiguration(unittest.TestCase):
                 self.assertFalse(board["editable"])
         self.assertEqual(self.config["dashboards"]["default_home_dashboard_path"], "/var/lib/grafana-dashboards/factory-overview.json")
         self.assertIn("factory-overview.json", dashboards())
+
+
+def evaluate_condition(condition: str, variables: dict) -> bool:
+    """Evaluate a variable validation condition made only of `var.name`, `!`, `||`, `&&`, parentheses and true/false.
+
+    A small recursive-descent reader (`!` binds tighter than `&&`, which binds tighter than `||`): nothing is executed, and
+    anything else in the condition is refused, so the test fails loudly if the validation ever grows beyond this shape.
+    """
+    tokens = re.findall(r"var\.\w+|\|\||&&|!|\(|\)|\btrue\b|\bfalse\b|\S", condition)
+    position = 0
+
+    def refuse():
+        raise AssertionError(f"not a condition this test can evaluate: {condition!r}")
+
+    def peek():
+        return tokens[position] if position < len(tokens) else None
+
+    def take():
+        nonlocal position
+        if position >= len(tokens):
+            refuse()
+        position += 1
+        return tokens[position - 1]
+
+    def read_or():
+        value = read_and()
+        while peek() == "||":
+            take()
+            right = read_and()
+            value = value or right
+        return value
+
+    def read_and():
+        value = read_not()
+        while peek() == "&&":
+            take()
+            right = read_not()
+            value = value and right
+        return value
+
+    def read_not():
+        if peek() == "!":
+            take()
+            return not read_not()
+        return read_atom()
+
+    def read_atom():
+        token = take()
+        if token == "(":
+            value = read_or()
+            if take() != ")":
+                refuse()
+            return value
+        if token in ("true", "false"):
+            return token == "true"
+        if token.startswith("var.") and token[4:] in variables:
+            return bool(variables[token[4:]])
+        return refuse()
+
+    result = read_or()
+    if position != len(tokens):
+        refuse()
+    return result
+
+
+class GrafanaAnonymousViewer(unittest.TestCase):
+    """grafana_anonymous_viewer_enabled: off by default, refused without monitoring, a Viewer who cannot edit when on."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.template = (MON / "grafana.ini.tftpl").read_text(encoding="utf-8")
+        cls.off_text = render_grafana_ini(anonymous_viewer=False)
+        cls.on_text = render_grafana_ini(anonymous_viewer=True)
+        cls.off = parse_ini(cls.off_text)
+        cls.on = parse_ini(cls.on_text)
+        cls.variable = block_text("variables.tf", 'variable "grafana_anonymous_viewer_enabled"')
+        cls.grafana = block_text("monitoring.tf", 'resource "kubernetes_manifest" "grafana"')
+
+    def test_the_variable_is_a_bool_and_off_by_default(self):
+        self.assertRegex(self.variable, r"type\s*=\s*bool\b")
+        self.assertRegex(self.variable, r"default\s*=\s*false\b")
+        self.assertNotRegex(self.variable, r"default\s*=\s*(true|null)\b")
+
+    def test_it_cannot_be_true_without_monitoring_enabled(self):
+        condition = re.search(r"condition\s*=\s*(.+)", self.variable).group(1)
+        for flag, monitoring, accepted in ((False, False, True), (False, True, True), (True, False, False), (True, True, True)):
+            with self.subTest(flag=flag, monitoring_enabled=monitoring):
+                self.assertEqual(evaluate_condition(condition, {"grafana_anonymous_viewer_enabled": flag, "monitoring_enabled": monitoring}), accepted)
+        self.assertRegex(re.search(r'error_message\s*=\s*"([^"]+)"', self.variable).group(1), r"needs monitoring_enabled")
+
+    def test_the_description_says_what_it_publishes_and_what_it_does_not_change(self):
+        description = re.search(r'description\s*=\s*"((?:[^"\\]|\\.)*)"', self.variable).group(1)
+        for phrase in ("Off by default", "monitoring_enabled", "Everything in the Grafana organization", "every series Prometheus holds", "A visitor cannot change a dashboard, the data source or any setting", "short URLs", "/grafana/login", "ingress_allowed_cidrs", 'Publishing the dashboards read-only'):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, description)
+
+    def test_the_switch_reaches_grafana_ini_and_no_route_or_pod_setting(self):
+        supplied = call_arguments(code("monitoring.tf"), "grafana_ini_text = templatefile(")
+        self.assertRegex(supplied, r"anonymous_viewer\s*=\s*var\.grafana_anonymous_viewer_enabled\b")
+        for name in ("ingress.tf", "k8s.tf", "network.tf", "outputs.tf"):
+            with self.subTest(file=name):
+                self.assertNotIn("grafana_anonymous_viewer_enabled", code(name), "the switch changes grafana.ini and nothing else")
+        self.assertNotRegex(self.grafana, r"GF_AUTH_ANONYMOUS|GF_USERS|GF_SNAPSHOTS|GF_SECURITY_ALLOW_EMBEDDING", "an environment variable would override the file")
+        self.assertIn("${local.grafana_ini_text}", re.search(r'"checksum/config"\s*=\s*sha256\((.+)\)', self.grafana).group(1), "a change of the ini must roll the pod")
+
+    def test_off_renders_exactly_the_text_it_always_did(self):
+        self.assertIn("\n[auth.anonymous]\nenabled = false\nhide_version = true\n\n[auth.basic]\n", self.off_text)
+        self.assertEqual(dict(self.off["auth.anonymous"]), {"enabled": "false", "hide_version": "true"})
+        self.assertIn("Microsoft Entra ID; nobody is anonymous.\n", self.off_text)
+        self.assertNotIn("grafana_anonymous_viewer_enabled", self.off_text)
+        self.assertNotRegex(self.off_text, r"(?m)^\s*(org_role|org_name)\s*=")
+
+    def test_on_renders_a_viewer_of_the_provisioned_organization_and_nothing_more(self):
+        self.assertIn("\n[auth.anonymous]\nenabled = true\n", self.on_text)
+        # The exact keys: a new key (a device limit, a role) is a decision, and this test makes it a visible one.
+        self.assertEqual(dict(self.on["auth.anonymous"]), {"enabled": "true", "org_name": "Main Org.", "org_role": "Viewer", "hide_version": "true"})
+        self.assertRegex(code("monitoring.tf"), r"orgId\s*=\s*1\b", "the dashboards are provisioned into organization 1, whose default name is Main Org.")
+        self.assertEqual(self.on["auth.anonymous"]["org_role"], "Viewer", "never Editor or Admin")
+
+    def test_the_header_comment_is_true_in_both_modes(self):
+        self.assertIn("nobody is anonymous", self.off_text.splitlines()[1])
+        on_header = "\n".join(self.on_text.splitlines()[:3])
+        self.assertNotIn("nobody is anonymous", on_header)
+        self.assertIn("without signing in, as a Viewer who cannot edit", on_header)
+        self.assertIn("grafana_anonymous_viewer_enabled", on_header)
+        self.assertNotIn("anyone who can reach", self.off_text)
+
+    def test_nothing_but_the_anonymous_section_differs_between_the_modes(self):
+        self.assertEqual(self.off.sections(), self.on.sections())
+        for section in self.off.sections():
+            if section == "auth.anonymous":
+                continue
+            with self.subTest(section=section):
+                self.assertEqual(dict(self.off[section]), dict(self.on[section]))
+        self.assertEqual(dict(self.off["auth.generic_oauth"])["enabled"], "true", "operators keep signing in with Entra")
+        self.assertEqual(dict(self.on["auth.generic_oauth"])["auto_login"], "true")
+
+    def test_a_visitor_cannot_edit_embed_snapshot_or_scrape_in_either_mode(self):
+        for mode, config in (("off", self.off), ("on", self.on)):
+            with self.subTest(mode=mode):
+                self.assertEqual(config["users"]["viewers_can_edit"], "false", "Explore and the dashboard editor are Editor features unless this is true")
+                self.assertEqual(config["users"]["allow_sign_up"], "false")
+                self.assertEqual(config["users"]["auto_assign_org_role"], "Viewer")
+                self.assertEqual(config["security"]["allow_embedding"], "false")
+                self.assertEqual(config["snapshots"]["external_enabled"], "false")
+                self.assertEqual(config["public_dashboards"]["enabled"], "false")
+                self.assertEqual(config["metrics"]["enabled"], "false")
+                self.assertEqual(config["auth.anonymous"]["hide_version"], "true")
+                self.assertEqual(config["auth.anonymous"].get("org_role", "Viewer"), "Viewer")
+                for section in ("auth.basic", "auth.proxy", "auth.jwt"):
+                    self.assertEqual(config[section]["enabled"], "false")
+                self.assertNotIn("public_mode", config["snapshots"], "snapshots.public_mode lets anyone create snapshots without a sign-in")
+        self.assertNotRegex(self.template, r"(?mi)^\s*(public_mode|viewers_can_edit\s*=\s*true|org_role\s*=\s*(Editor|Admin))")
+
+    def test_the_provisioned_boards_and_the_data_source_cannot_be_changed_by_a_visitor(self):
+        text = code("monitoring.tf")
+        provider = attribute_block(text, "providers = [")
+        self.assertRegex(provider, r"allowUiUpdates\s*=\s*false\b")
+        self.assertRegex(provider, r"disableDeletion\s*=\s*true\b")
+        self.assertRegex(provider, r"orgId\s*=\s*1\b")
+        source = attribute_block(text, "datasources = [")
+        self.assertRegex(source, r"editable\s*=\s*false\b")
+        self.assertNotRegex(source, r"editable\s*=\s*true|basicAuth|password|secureJsonData", "the data source holds no credential for a visitor to use")
+        for name, board in dashboards().items():
+            with self.subTest(dashboard=name):
+                self.assertIs(board["editable"], False)
+
+    def test_prometheus_can_be_read_through_grafana_and_not_written(self):
+        prometheus = block_text("monitoring.tf", 'resource "kubernetes_manifest" "prometheus"')
+        self.assertNotRegex(prometheus, r"--web\.enable-(admin-api|lifecycle|remote-write-receiver)")
+        self.assertNotIn("--web.page-title", prometheus)
+
+    def test_caddy_hands_the_grafana_path_over_with_no_address_or_auth_rule_of_its_own(self):
+        text = code("ingress.tf")
+        start = text.index("caddy_routes = var.monitoring_enabled ? [")
+        on = text[start : text.index("\n  ]\n", start)].split("] : [", 1)[0]
+        grafana = on[: on.index('"\\thandle {"')]
+        self.assertIn('"\\thandle /grafana/* {"', grafana)
+        self.assertNotRegex(grafana, r"(?i)remote_ip|client_ip|respond|abort|basic_?auth|forward_auth|@\w+")
+
+    def test_the_example_documents_the_switch_and_never_turns_it_on(self):
+        example = (INFRA / "terraform.tfvars.example").read_text(encoding="utf-8")
+        self.assertRegex(example, r"(?m)^# grafana_anonymous_viewer_enabled\s*= false\b")
+        self.assertNotRegex(example, r"(?m)^\s*#?\s*grafana_anonymous_viewer_enabled\s*=\s*true")
+        self.assertNotRegex(example, r"(?m)^grafana_anonymous_viewer_enabled\s*=")
+        self.assertIn("WARNING", example)
+        self.assertIn("Publishing the dashboards read-only", example)
+
+    def test_the_document_says_what_a_visitor_can_read_and_how_to_turn_it_off(self):
+        text = (ROOT / "docs" / "metrics.md").read_text(encoding="utf-8")
+        start = text.index("## Publishing the dashboards read-only")
+        section = text[start : text.index("\n## ", start + 1)]
+        for phrase in (
+            "grafana_anonymous_viewer_enabled",
+            "without signing in",
+            "Factory overview",
+            "Factory resources and manager",
+            "Factory node auto-provisioning",
+            "Every series Prometheus holds",
+            "/grafana/api/ds/query",
+            "viewers_can_edit",
+            "ingress_allowed_cidrs",
+            "/grafana/login",
+            "Review before turning it on",
+            "Turn it on",
+            "Turn it off",
+            "emptyDir",
+            "UNVERIFIED",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, section)
+        self.assertNotRegex(section, r"(?m)^\| ", "a table row here would be read as a catalogue row")
 
 
 class IngressRoute(unittest.TestCase):
@@ -745,7 +1022,7 @@ class PrometheusConfiguration(unittest.TestCase):
         self.assertIn("role: node", self.text)
         supplied = call_arguments(code("monitoring.tf"), "prometheus_config_text = templatefile(")
         self.assertIn("join(\"|\", [local.k8s_namespace, local.k8s_ingress_namespace, local.k8s_monitoring_namespace])", supplied)
-        self.assertIn("insecure_skip_verify: true", self.text)  # recorded as UNVERIFIED in README.md
+        self.assertIn("insecure_skip_verify: true", self.text)  # documented in infra/README.md, "Security summary"
 
     def test_the_rule_files_are_the_mounted_json(self):
         self.assertIn("/etc/prometheus-rules/*.json", self.text)

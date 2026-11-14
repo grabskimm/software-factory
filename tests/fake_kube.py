@@ -521,7 +521,7 @@ class FakeKube:
 
     def _denied(self, name, broken):
         ids = " ".join(f"[{rule}]" for rule in broken)
-        # The shape a real API server answered (kind v1.36.1, docs/pod-backend-local-e2e.md): the policy's reason is Forbidden, so the
+        # The shape a real API server answered (kind v1.36.1): the policy's reason is Forbidden, so the
         # status is 403, and each message carries `[rule:<id>]` (infra/policy/pod-policy.json).
         tags = " ".join(f"[rule:{rule}] a rule of the policy was broken" for rule in broken)
         message = (
