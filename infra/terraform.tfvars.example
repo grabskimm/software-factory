@@ -1,0 +1,159 @@
+# Example variable values for infra/. NOT auto-loaded (the name ends in .example).
+#
+# Copy this file to a name you keep out of version control, replace every <<PLACEHOLDER>>,
+# and pass it explicitly:
+#
+#   cp terraform.tfvars.example prod.tfvars     # *.tfvars is git-ignored in infra/
+#   terraform -chdir=infra plan -input=false -var-file=prod.tfvars
+#
+# The same values can come from CI variables (INFRA_TFVARS, a variable holding this text that your own pipeline
+# passes to terraform with -var-file; see infra/README.md). Nothing in this file is a secret: the GitHub App key
+# and the Anthropic key live in Key Vault and only their version IDs appear below.
+
+# --- Azure scope -------------------------------------------------------------
+subscription_id     = "<<AZ_SUBSCRIPTION_ID>>"
+tenant_id           = "<<AZ_TENANT_ID>>"
+location            = "<<AZ_LOCATION>>" # normalized, e.g. lowercase without spaces
+resource_group_name = "<<RESOURCE_GROUP>>"
+name_prefix         = "<<NAME_PREFIX>>" # 2-12 characters: lowercase letters, digits, hyphens
+
+tags = {
+  "<<TAG_KEY>>" = "<<TAG_VALUE>>"
+}
+
+# --- Image ------------------------------------------------------------------------
+# image_digest is NOT set here: it lives in infra/image.auto.tfvars, which Terraform loads
+# on its own, so that promoting an image is one reviewed change (infra/README.md, "Promote an image digest").
+acr_name                = "<<ACR_NAME>>"
+acr_resource_group_name = "<<ACR_RESOURCE_GROUP>>"
+image_repository        = "<<IMAGE_REPOSITORY>>" # must equal the repository you push the image to (default: factory)
+
+# --- Key Vault (the operator uploads the two secrets; see infra/README.md) -------------
+key_vault_name                        = "<<KEY_VAULT_NAME>>"
+anthropic_api_key_secret_version      = "<<ANTHROPIC_API_KEY_SECRET_VERSION>>"      # 32 hex characters
+github_app_private_key_secret_version = "<<GITHUB_APP_PRIVATE_KEY_SECRET_VERSION>>" # 32 hex characters
+
+# Optional, leave empty unless you need them:
+# key_vault_ip_rules                      = ["<<OPERATOR_PUBLIC_IP>>"]  # only while uploading the secrets
+# key_vault_secrets_officer_principal_ids = ["<<OPERATOR_OBJECT_ID>>"]
+# token_broker_command                    = "<<TOKEN_BROKER_COMMAND>>"  # only if the image does not set it
+
+# --- Entra ID app registration that protects the manager API ------------------------
+# The manager validates the bearer tokens itself: these are the accepted `aud` values.
+entra_allowed_audiences = [
+  "api://<<ENTRA_APP_CLIENT_ID>>",
+  "<<ENTRA_APP_CLIENT_ID>>",
+]
+
+# --- Ingress (Caddy + Let's Encrypt on a public Azure IP) -----------------------------
+ingress_dns_label  = "<<INGRESS_DNS_LABEL>>" # served at <label>.<location>.cloudapp.azure.com
+caddy_image_digest = "sha256:<<CADDY_IMAGE_DIGEST_HEX>>"
+
+# Optional:
+# acme_email             = "<<ACME_CONTACT_EMAIL>>"
+# caddy_image_repository = "<<REGISTRY>>/<<CADDY_REPOSITORY>>"  # default: docker.io/library/caddy
+# ingress_allowed_cidrs  = ["<<OPERATOR_EGRESS_CIDR>>"]          # blocks Let's Encrypt validation, see variables.tf
+
+# Browser sign-in and a host name of your own for the dashboard (infra/README.md, "Browser sign-in and custom host name").
+# Off or unchanged while unset. The dashboard derives its client ID and scope from entra_allowed_audiences
+# (`<client id>/.default`: the GUID form, because the page's registration is also the API and Entra refuses a token
+# request for itself by `api://` URI, AADSTS90009), so the two entra_spa_* inputs are needed only when the API is a different
+# registration. Before turning the host on: the SPA redirect URIs are registered on the app registration
+# (the outputs `dashboard_spa_redirect_uris` list them) and the DNS record exists, DNS only at first.
+# ingress_custom_host = "<<CUSTOM_HOST>>"                         # for example factory.example.org; served as well as the Azure name
+# entra_spa_client_id = "<<ENTRA_SPA_CLIENT_ID>>"                 # default null: derived from entra_allowed_audiences
+# entra_spa_scope     = "<<ENTRA_APP_CLIENT_ID>>/.default"        # default null: derived the same way (GUID form for the same registration)
+
+# --- Cluster access -----------------------------------------------------------------
+# Object IDs that get "Azure Kubernetes Service RBAC Cluster Admin" on the cluster: list the
+# identity that applies this configuration (the identity your pipeline applies with, infra/README.md,
+# Bootstrap step 4) and the people or groups that should use kubectl. Required and non-empty.
+# Terraform needs the apply identity's admin role to create the Kubernetes objects. Do NOT list
+# the read-only plan identity, and nothing is added for you: this list is the only source.
+aks_cluster_admin_principal_ids = ["<<APPLY_IDENTITY_OBJECT_ID>>", "<<OPERATOR_OBJECT_ID>>"]
+# Restrict the Kubernetes API to known egress addresses (the NAT gateway address is added for
+# you). Empty leaves the API reachable from the internet behind Entra ID and Azure RBAC.
+# GitHub-hosted runners have no stable address: only set this with a runner you control.
+# aks_api_authorized_ip_ranges = ["<<OPERATOR_EGRESS_CIDR>>"]
+
+# --- GitHub App --------------------------------------------------------------------
+github_app_id      = "<<GITHUB_APP_ID>>"
+github_app_slug    = "<<GITHUB_APP_SLUG>>"
+github_app_user_id = "<<GITHUB_APP_USER_ID>>"
+
+# --- Per-repository Factory configuration --------------------------------------------
+# One entry per repository; the key is `org/name`. The text is mounted at
+# /config/repos/<org>__<name>.toml. Reference: docs/configuration.md of the repository, "Configure a repository".
+repo_configs = {
+  "<<ORG>>/<<REPO>>" = <<-TOML
+    repo            = "<<ORG>>/<<REPO>>"
+    base_branch     = "main"
+    installation_id = <<GITHUB_APP_INSTALLATION_ID>>
+
+    # @mention follow-ups are OFF unless the repository sets this key: a mention of the App on an open Factory
+    # pull request then starts a session on its own branch (docs/manager.md, "Follow-up requests"). Leaving it
+    # out also leaves the follow-up recorder paused for this repository. With no App identity, also set
+    # mention_handle to the account that is mentioned and whose pull requests are followed.
+    # followup = true
+    # mention_handle = "<<ACCOUNT>>"
+
+    # Required in this image (FACTORY_REQUIRE_WORKER_IDENTITY=1): the ids of the image's
+    # `worker` user and `factory-work` group. Without them every agent call is refused.
+    [worker]
+    uid = 10002
+    gid = 10010
+
+    [sandbox]
+    verify_domains = ["<<VERIFY_DOMAIN>>"]
+
+    [preflight]
+    probe_url = "https://<<VERIFY_DOMAIN>>/"
+  TOML
+}
+
+# --- Sizing and network (defaults shown; change only when needed) ----------------------
+# aks_sku_tier                     = "Free"             # or "Standard" (uptime SLA)
+# aks_kubernetes_version           = "1.36"             # default: latest recommended at creation
+# aks_node_os_upgrade_channel      = "NodeImage"        # "None" = you reimage the nodes yourself
+# aks_system_pool_vm_size          = "Standard_D2ds_v5"
+# aks_user_pool_vm_size            = "Standard_D8ds_v5"
+# container_cpu                    = 6                  # at most 75 % of the user pool node
+# container_memory                 = "24Gi"
+# data_disk_size_gib               = 128
+# termination_grace_period_seconds = 600
+# log_retention_days               = 4
+# vnet_address_space               = ["10.60.0.0/24"]
+# node_subnet_prefix               = "10.60.0.0/26"
+# aks_pod_cidr                     = "10.244.0.0/16"
+# aks_service_cidr                 = "10.0.0.0/16"
+
+# --- Cilium, node auto-provisioning and the worker pool (issue #144; infra/README.md, "Switching the data plane") ----
+# ALL OFF. Never set by a pull request: these live in INFRA_TFVARS (the operator's tfvars) and are set by hand, in this order, each by a
+# manual apply behind the drain gate, after snapshots and only after the throwaway mirror ran it.
+# network_data_plane        = "cilium"       # step 1, stage=cluster: reimages every node at once; stays set afterwards
+# network_policy            = "cilium"       # only if the mirror shows the Cilium data plane needs it
+# nap_mode                  = "Auto"         # step 2, stage=cluster; stays set afterwards
+# nap_default_node_pools    = "None"         # default: Factory defines its own pool
+# worker_nodepool_enabled   = true           # step 3, stage=all: creates the AKSNodeClass and NodePool (needs steps 1 and 2)
+# family_vcpu_quota         = 350            # the limit of the VM family of worker_pool_sku in `az vm list-usage` (for example StandardDsv6Family: 350 in one reference subscription); the regional `cores` limit (150) is NOT checked by Terraform
+# worker_pool_sku           = "Standard_D4s_v6"  # a Dsv6 or Dsv7 size, not Ddsv5 (its family quota is small and not every zone offers it)
+# worker_pool_limits_cpu    = 32             # a multiple of the node vCPUs; plus twice the production vCPUs of the family at most the quota (for a Dds_v5 worker size and quota 65 the largest is 40, with 12 production vCPUs)
+# worker_pool_pods_per_node = 1              # one repository per node: the ceiling is floor(limits_cpu / node vCPU) * this (8)
+# pod_backend_enabled       = false          # step 4 (needs steps 1 to 3): the worker namespace, its service account and its default-deny NetworkPolicy, the log exclusion, the relay rule; nothing runs a worker pod yet
+
+# --- Monitoring: Prometheus + Grafana + optional Alertmanager (infra/README.md, "Monitoring") ----------------
+# Off by default. Upload the three secrets to Key Vault and create the Entra pieces first, then:
+# monitoring_enabled                  = true
+# metrics_token_secret_version        = "<<METRICS_TOKEN_SECRET_VERSION>>"        # 32 hex characters
+# grafana_oauth_client_id             = "<<GRAFANA_OAUTH_CLIENT_ID>>"             # the Entra app registration's client ID
+# grafana_oauth_client_secret_version = "<<GRAFANA_OAUTH_CLIENT_SECRET_VERSION>>" # 32 hex characters
+# grafana_operator_role               = "Editor"                                  # or "Admin"
+# Alerts are visible in Prometheus and Grafana only, until you name a receiver:
+# alert_receiver                      = "slack"                                   # none | slack | msteams | webhook
+# alert_receiver_secret_version       = "<<ALERT_RECEIVER_SECRET_VERSION>>"       # Key Vault secret alert-receiver-url
+# monitoring_node_pool_vm_size        = "Standard_D2ds_v5"                        # default null: the system node
+# monitoring_nodeclaim_metrics_enabled = false                              # NodeClaim condition times from kube-state-metrics (needs nap_mode = "Auto"); the pods and nodes series need nothing
+# prometheus_retention                = "15d"
+# prometheus_storage_gib              = 8
+# prometheus_scrape_interval          = "30s"
+# factory_network_policy_enabled      = false                                     # PREPARED: enforced only with network_data_plane = "cilium"

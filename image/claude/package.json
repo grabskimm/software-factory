@@ -1,0 +1,12 @@
+{
+  "name": "factory-claude-code-pin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pins the Claude Code CLI installed into the Factory image. The lockfile carries the sha512 integrity of the main package and of its platform packages. See image/README.md.",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.318"
+  }
+}

@@ -1,0 +1,233 @@
+{
+  "apiVersion": "admissionregistration.k8s.io/v1",
+  "kind": "ValidatingAdmissionPolicy",
+  "metadata": {
+    "name": "factory-worker-pods",
+    "labels": {
+      "app.kubernetes.io/part-of": "factory"
+    }
+  },
+  "spec": {
+    "failurePolicy": "Fail",
+    "matchConstraints": {
+      "resourceRules": [
+        {
+          "apiGroups": [
+            ""
+          ],
+          "apiVersions": [
+            "v1"
+          ],
+          "operations": [
+            "CREATE"
+          ],
+          "resources": [
+            "pods"
+          ]
+        }
+      ]
+    },
+    "matchConditions": [
+      {
+        "name": "launcher",
+        "expression": "request.userInfo.username == 'system:serviceaccount:factory:factory'"
+      }
+    ],
+    "validations": [
+      {
+        "expression": "'image' in params.data && params.data['image'].matches('^[a-z0-9][a-z0-9.-]*(:[0-9]+)?(/[a-z0-9._-]+)+@sha256:[0-9a-f]{64}$') && object.spec.containers.all(c, c.image == params.data['image']) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, c.image == params.data['image'])) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, c.image == params.data['image']))",
+        "message": "[rule:image] every container image must be the pinned digest reference of the launcher",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.hostUsers) && object.spec.hostUsers == false",
+        "message": "[rule:host-users] hostUsers must be present and false",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "!has(object.spec.hostNetwork) || object.spec.hostNetwork == false",
+        "message": "[rule:host-network] hostNetwork is not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "!has(object.spec.hostPID) || object.spec.hostPID == false",
+        "message": "[rule:host-pid] hostPID is not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "!has(object.spec.hostIPC) || object.spec.hostIPC == false",
+        "message": "[rule:host-ipc] hostIPC is not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "!has(object.spec.nodeName)",
+        "message": "[rule:node-name] nodeName is not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "!has(object.spec.volumes) || object.spec.volumes.all(v, !has(v.hostPath))",
+        "message": "[rule:host-path] hostPath volumes are not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, (!has(c.securityContext) || !has(c.securityContext.privileged) || c.securityContext.privileged == false)) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, (!has(c.securityContext) || !has(c.securityContext.privileged) || c.securityContext.privileged == false))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, (!has(c.securityContext) || !has(c.securityContext.privileged) || c.securityContext.privileged == false)))",
+        "message": "[rule:privileged] privileged containers are not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, (!has(c.securityContext) || !has(c.securityContext.capabilities))) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, (!has(c.securityContext) || !has(c.securityContext.capabilities)))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, (!has(c.securityContext) || !has(c.securityContext.capabilities))))",
+        "message": "[rule:capabilities] no container may set capabilities",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, (!has(c.securityContext) || (!has(c.securityContext.runAsUser) && !has(c.securityContext.runAsGroup) && !has(c.securityContext.runAsNonRoot)))) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, (!has(c.securityContext) || (!has(c.securityContext.runAsUser) && !has(c.securityContext.runAsGroup) && !has(c.securityContext.runAsNonRoot))))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, (!has(c.securityContext) || (!has(c.securityContext.runAsUser) && !has(c.securityContext.runAsGroup) && !has(c.securityContext.runAsNonRoot))))) && (!has(object.spec.securityContext) || (!has(object.spec.securityContext.runAsUser) && !has(object.spec.securityContext.runAsGroup) && !has(object.spec.securityContext.runAsNonRoot)))",
+        "message": "[rule:run-as] runAsUser, runAsGroup and runAsNonRoot are not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, (!has(c.securityContext) || !has(c.securityContext.seccompProfile))) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, (!has(c.securityContext) || !has(c.securityContext.seccompProfile)))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, (!has(c.securityContext) || !has(c.securityContext.seccompProfile)))) && (!has(object.spec.securityContext) || (!has(object.spec.securityContext.seccompProfile)))",
+        "message": "[rule:seccomp] seccompProfile is not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, has(c.securityContext) && has(c.securityContext.procMount) && c.securityContext.procMount == 'Unmasked') && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, has(c.securityContext) && has(c.securityContext.procMount) && c.securityContext.procMount == 'Unmasked')) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, has(c.securityContext) && has(c.securityContext.procMount) && c.securityContext.procMount == 'Unmasked'))",
+        "message": "[rule:proc-mount] procMount must be Unmasked",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, has(c.securityContext) && has(c.securityContext.procMount) && c.securityContext.procMount == 'Unmasked' && has(c.securityContext.appArmorProfile) && c.securityContext.appArmorProfile.type == 'Unconfined' && !has(c.securityContext.appArmorProfile.localhostProfile) && !has(c.securityContext.capabilities) && !has(c.securityContext.privileged) && !has(c.securityContext.seLinuxOptions) && !has(c.securityContext.windowsOptions) && !has(c.securityContext.runAsUser) && !has(c.securityContext.runAsGroup) && !has(c.securityContext.runAsNonRoot) && !has(c.securityContext.readOnlyRootFilesystem) && !has(c.securityContext.allowPrivilegeEscalation) && !has(c.securityContext.seccompProfile)) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, has(c.securityContext) && has(c.securityContext.procMount) && c.securityContext.procMount == 'Unmasked' && has(c.securityContext.appArmorProfile) && c.securityContext.appArmorProfile.type == 'Unconfined' && !has(c.securityContext.appArmorProfile.localhostProfile) && !has(c.securityContext.capabilities) && !has(c.securityContext.privileged) && !has(c.securityContext.seLinuxOptions) && !has(c.securityContext.windowsOptions) && !has(c.securityContext.runAsUser) && !has(c.securityContext.runAsGroup) && !has(c.securityContext.runAsNonRoot) && !has(c.securityContext.readOnlyRootFilesystem) && !has(c.securityContext.allowPrivilegeEscalation) && !has(c.securityContext.seccompProfile))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, has(c.securityContext) && has(c.securityContext.procMount) && c.securityContext.procMount == 'Unmasked' && has(c.securityContext.appArmorProfile) && c.securityContext.appArmorProfile.type == 'Unconfined' && !has(c.securityContext.appArmorProfile.localhostProfile) && !has(c.securityContext.capabilities) && !has(c.securityContext.privileged) && !has(c.securityContext.seLinuxOptions) && !has(c.securityContext.windowsOptions) && !has(c.securityContext.runAsUser) && !has(c.securityContext.runAsGroup) && !has(c.securityContext.runAsNonRoot) && !has(c.securityContext.readOnlyRootFilesystem) && !has(c.securityContext.allowPrivilegeEscalation) && !has(c.securityContext.seccompProfile))) && (!has(object.spec.securityContext) || (!has(object.spec.securityContext.seLinuxOptions) && !has(object.spec.securityContext.windowsOptions) && !has(object.spec.securityContext.runAsUser) && !has(object.spec.securityContext.runAsNonRoot) && !has(object.spec.securityContext.runAsGroup) && !has(object.spec.securityContext.supplementalGroups) && !has(object.spec.securityContext.fsGroup) && !has(object.spec.securityContext.sysctls) && !has(object.spec.securityContext.fsGroupChangePolicy) && !has(object.spec.securityContext.seccompProfile) && !has(object.spec.securityContext.appArmorProfile)))",
+        "message": "[rule:security-context-keys] the container securityContext is exactly procMount Unmasked and appArmorProfile Unconfined, and the pod has none",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.serviceAccountName) && object.spec.serviceAccountName == 'factory-worker' && (!has(object.spec.serviceAccount) || object.spec.serviceAccount == 'factory-worker')",
+        "message": "[rule:service-account] serviceAccountName must be the worker service account",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.automountServiceAccountToken) && object.spec.automountServiceAccountToken == false",
+        "message": "[rule:automount] automountServiceAccountToken must be present and false",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.volumes) && size(object.spec.volumes) == 3 && object.spec.volumes.all(v, (v.name == 'data' && has(v.emptyDir) && has(v.emptyDir.sizeLimit) && !has(v.emptyDir.medium) && v.emptyDir.sizeLimit.matches('^[1-9][0-9]*(Mi|Gi)$') && isQuantity(v.emptyDir.sizeLimit) && quantity(v.emptyDir.sizeLimit).isGreaterThan(quantity('0')) && quantity(v.emptyDir.sizeLimit).compareTo(quantity('14Gi')) <= 0) || (v.name == 'tmp' && has(v.emptyDir) && has(v.emptyDir.sizeLimit) && !has(v.emptyDir.medium) && v.emptyDir.sizeLimit.matches('^[1-9][0-9]*(Mi|Gi)$') && isQuantity(v.emptyDir.sizeLimit) && quantity(v.emptyDir.sizeLimit).isGreaterThan(quantity('0')) && quantity(v.emptyDir.sizeLimit).compareTo(quantity('2Gi')) <= 0) || (v.name == 'session' && has(v.secret) && v.secret.secretName == object.metadata.name + '-s' && has(v.secret.defaultMode) && v.secret.defaultMode == 256 && !has(v.secret.optional) && !has(v.secret.items)))",
+        "message": "[rule:volumes] volumes are data and tmp (emptyDir with a sizeLimit) and the pod's own Secret",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, has(c.volumeMounts) && size(c.volumeMounts) == 3 && c.volumeMounts.all(m, ((m.name == 'data' && m.mountPath == '/data' && !has(m.readOnly)) || (m.name == 'tmp' && m.mountPath == '/tmp' && !has(m.readOnly)) || (m.name == 'session' && m.mountPath == '/run/factory-session' && has(m.readOnly) && m.readOnly == true)) && !has(m.subPath) && !has(m.subPathExpr) && !has(m.mountPropagation))) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, has(c.volumeMounts) && size(c.volumeMounts) == 3 && c.volumeMounts.all(m, ((m.name == 'data' && m.mountPath == '/data' && !has(m.readOnly)) || (m.name == 'tmp' && m.mountPath == '/tmp' && !has(m.readOnly)) || (m.name == 'session' && m.mountPath == '/run/factory-session' && has(m.readOnly) && m.readOnly == true)) && !has(m.subPath) && !has(m.subPathExpr) && !has(m.mountPropagation)))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, has(c.volumeMounts) && size(c.volumeMounts) == 3 && c.volumeMounts.all(m, ((m.name == 'data' && m.mountPath == '/data' && !has(m.readOnly)) || (m.name == 'tmp' && m.mountPath == '/tmp' && !has(m.readOnly)) || (m.name == 'session' && m.mountPath == '/run/factory-session' && has(m.readOnly) && m.readOnly == true)) && !has(m.subPath) && !has(m.subPathExpr) && !has(m.mountPropagation))))",
+        "message": "[rule:volume-mounts] volume mounts are exactly data, tmp and the read-only session Secret",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, has(c.env) && size(c.env) == 10 && c.env.all(e, e.name in ['FACTORY_SESSION_ID', 'FACTORY_RELAY_URL', 'FACTORY_SESSION_DEADLINE', 'FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP', 'FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS', 'FACTORY_API_PUBLIC_HOST', 'AZMON_COLLECT_ENV']) && ['FACTORY_SESSION_ID', 'FACTORY_RELAY_URL', 'FACTORY_SESSION_DEADLINE', 'FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP', 'FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS', 'FACTORY_API_PUBLIC_HOST', 'AZMON_COLLECT_ENV'].all(n, c.env.exists_one(e, e.name == n))) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, has(c.env) && size(c.env) == 10 && c.env.all(e, e.name in ['FACTORY_SESSION_ID', 'FACTORY_RELAY_URL', 'FACTORY_SESSION_DEADLINE', 'FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP', 'FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS', 'FACTORY_API_PUBLIC_HOST', 'AZMON_COLLECT_ENV']) && ['FACTORY_SESSION_ID', 'FACTORY_RELAY_URL', 'FACTORY_SESSION_DEADLINE', 'FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP', 'FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS', 'FACTORY_API_PUBLIC_HOST', 'AZMON_COLLECT_ENV'].all(n, c.env.exists_one(e, e.name == n)))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, has(c.env) && size(c.env) == 10 && c.env.all(e, e.name in ['FACTORY_SESSION_ID', 'FACTORY_RELAY_URL', 'FACTORY_SESSION_DEADLINE', 'FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP', 'FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS', 'FACTORY_API_PUBLIC_HOST', 'AZMON_COLLECT_ENV']) && ['FACTORY_SESSION_ID', 'FACTORY_RELAY_URL', 'FACTORY_SESSION_DEADLINE', 'FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP', 'FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS', 'FACTORY_API_PUBLIC_HOST', 'AZMON_COLLECT_ENV'].all(n, c.env.exists_one(e, e.name == n))))",
+        "message": "[rule:env-names] environment names are exactly the allow-list, each once",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, !has(c.envFrom) && has(c.env) && c.env.all(e, (e.name in ['FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP'] ? (has(e.valueFrom) && !has(e.value) && has(e.valueFrom.fieldRef) && !has(e.valueFrom.secretKeyRef) && !has(e.valueFrom.configMapKeyRef) && !has(e.valueFrom.resourceFieldRef) && (!has(e.valueFrom.fieldRef.apiVersion) || e.valueFrom.fieldRef.apiVersion == 'v1') && e.valueFrom.fieldRef.fieldPath == {'FACTORY_POD_NAME': 'metadata.name', 'FACTORY_POD_UID': 'metadata.uid', 'FACTORY_NODE_IP': 'status.hostIP'}[e.name]) : (has(e.value) && !has(e.valueFrom) && (e.name == 'FACTORY_SESSION_ID' ? (has(object.metadata.labels) && 'factory.internal/session' in object.metadata.labels && e.value == object.metadata.labels['factory.internal/session']) : e.name == 'FACTORY_SESSION_DEADLINE' ? (has(object.metadata.annotations) && 'factory.internal/deadline' in object.metadata.annotations && e.value == object.metadata.annotations['factory.internal/deadline']) : e.name == 'FACTORY_RELAY_URL' ? (e.value.matches('^http://[A-Za-z0-9.-]{1,253}:8090$')) : e.name in ['FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS'] ? (e.value.matches('^[A-Za-z0-9.:-]{1,253}$')) : e.name == 'FACTORY_API_PUBLIC_HOST' ? (e.value.matches('^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$')) : e.name == 'AZMON_COLLECT_ENV' ? (true) : false))))) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, !has(c.envFrom) && has(c.env) && c.env.all(e, (e.name in ['FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP'] ? (has(e.valueFrom) && !has(e.value) && has(e.valueFrom.fieldRef) && !has(e.valueFrom.secretKeyRef) && !has(e.valueFrom.configMapKeyRef) && !has(e.valueFrom.resourceFieldRef) && (!has(e.valueFrom.fieldRef.apiVersion) || e.valueFrom.fieldRef.apiVersion == 'v1') && e.valueFrom.fieldRef.fieldPath == {'FACTORY_POD_NAME': 'metadata.name', 'FACTORY_POD_UID': 'metadata.uid', 'FACTORY_NODE_IP': 'status.hostIP'}[e.name]) : (has(e.value) && !has(e.valueFrom) && (e.name == 'FACTORY_SESSION_ID' ? (has(object.metadata.labels) && 'factory.internal/session' in object.metadata.labels && e.value == object.metadata.labels['factory.internal/session']) : e.name == 'FACTORY_SESSION_DEADLINE' ? (has(object.metadata.annotations) && 'factory.internal/deadline' in object.metadata.annotations && e.value == object.metadata.annotations['factory.internal/deadline']) : e.name == 'FACTORY_RELAY_URL' ? (e.value.matches('^http://[A-Za-z0-9.-]{1,253}:8090$')) : e.name in ['FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS'] ? (e.value.matches('^[A-Za-z0-9.:-]{1,253}$')) : e.name == 'FACTORY_API_PUBLIC_HOST' ? (e.value.matches('^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$')) : e.name == 'AZMON_COLLECT_ENV' ? (true) : false)))))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, !has(c.envFrom) && has(c.env) && c.env.all(e, (e.name in ['FACTORY_POD_NAME', 'FACTORY_POD_UID', 'FACTORY_NODE_IP'] ? (has(e.valueFrom) && !has(e.value) && has(e.valueFrom.fieldRef) && !has(e.valueFrom.secretKeyRef) && !has(e.valueFrom.configMapKeyRef) && !has(e.valueFrom.resourceFieldRef) && (!has(e.valueFrom.fieldRef.apiVersion) || e.valueFrom.fieldRef.apiVersion == 'v1') && e.valueFrom.fieldRef.fieldPath == {'FACTORY_POD_NAME': 'metadata.name', 'FACTORY_POD_UID': 'metadata.uid', 'FACTORY_NODE_IP': 'status.hostIP'}[e.name]) : (has(e.value) && !has(e.valueFrom) && (e.name == 'FACTORY_SESSION_ID' ? (has(object.metadata.labels) && 'factory.internal/session' in object.metadata.labels && e.value == object.metadata.labels['factory.internal/session']) : e.name == 'FACTORY_SESSION_DEADLINE' ? (has(object.metadata.annotations) && 'factory.internal/deadline' in object.metadata.annotations && e.value == object.metadata.annotations['factory.internal/deadline']) : e.name == 'FACTORY_RELAY_URL' ? (e.value.matches('^http://[A-Za-z0-9.-]{1,253}:8090$')) : e.name in ['FACTORY_MANAGER_ADDRESS', 'FACTORY_MANAGER_METRICS_ADDRESS'] ? (e.value.matches('^[A-Za-z0-9.:-]{1,253}$')) : e.name == 'FACTORY_API_PUBLIC_HOST' ? (e.value.matches('^[A-Za-z0-9][A-Za-z0-9.-]{0,252}$')) : e.name == 'AZMON_COLLECT_ENV' ? (true) : false))))))",
+        "message": "[rule:env-source] environment values are plain values of the expected shape or a fieldRef, never a secret or config map source",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, has(c.env) && c.env.exists_one(e, e.name == 'AZMON_COLLECT_ENV' && has(e.value) && e.value == 'False')) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, has(c.env) && c.env.exists_one(e, e.name == 'AZMON_COLLECT_ENV' && has(e.value) && e.value == 'False'))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, has(c.env) && c.env.exists_one(e, e.name == 'AZMON_COLLECT_ENV' && has(e.value) && e.value == 'False')))",
+        "message": "[rule:env-collect] AZMON_COLLECT_ENV must be False",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.nodeSelector) && size(object.spec.nodeSelector) == 2 && 'pool' in object.spec.nodeSelector && object.spec.nodeSelector['pool'] == 'worker' && 'kubernetes.io/os' in object.spec.nodeSelector && object.spec.nodeSelector['kubernetes.io/os'] == 'linux'",
+        "message": "[rule:node-selector] nodeSelector must be exactly the worker pool on linux",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.tolerations) && object.spec.tolerations.exists_one(t, (has(t.key) && t.key == 'workload' && has(t.operator) && t.operator == 'Equal' && has(t.value) && t.value == 'worker' && has(t.effect) && t.effect == 'NoSchedule' && !has(t.tolerationSeconds))) && object.spec.tolerations.all(t, (has(t.key) && t.key == 'workload' && has(t.operator) && t.operator == 'Equal' && has(t.value) && t.value == 'worker' && has(t.effect) && t.effect == 'NoSchedule' && !has(t.tolerationSeconds)) || (has(t.key) && t.key in ['node.kubernetes.io/not-ready', 'node.kubernetes.io/unreachable'] && has(t.operator) && t.operator == 'Exists' && has(t.effect) && t.effect == 'NoExecute' && !has(t.value)) || (has(t.key) && t.key == 'node.kubernetes.io/memory-pressure' && has(t.operator) && t.operator == 'Exists' && has(t.effect) && t.effect == 'NoSchedule' && !has(t.value) && !has(t.tolerationSeconds)))",
+        "message": "[rule:tolerations] tolerations must be exactly the worker taint (the two defaulted NoExecute ones and the memory-pressure one the API server adds are ignored)",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.affinity) && !has(object.spec.affinity.nodeAffinity) && !has(object.spec.affinity.podAffinity) && has(object.spec.affinity.podAntiAffinity) && !has(object.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution) && has(object.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution) && size(object.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution) == 1 && object.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution.all(t, has(t.labelSelector) && has(t.topologyKey) && t.topologyKey == 'kubernetes.io/hostname' && !has(t.namespaces) && !has(t.namespaceSelector) && !has(t.matchLabelKeys) && !has(t.mismatchLabelKeys) && !has(t.labelSelector.matchLabels) && has(t.labelSelector.matchExpressions) && size(t.labelSelector.matchExpressions) == 1 && t.labelSelector.matchExpressions.all(x, x.key == 'factory.internal/repo' && x.operator == 'NotIn' && has(x.values) && size(x.values) == 1 && has(object.metadata.labels) && 'factory.internal/repo' in object.metadata.labels && x.values[0] == object.metadata.labels['factory.internal/repo']))",
+        "message": "[rule:anti-affinity] required anti-affinity on the repository label, NotIn the pod's own repository",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.restartPolicy) && object.spec.restartPolicy == 'Never'",
+        "message": "[rule:restart-policy] restartPolicy must be Never",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.activeDeadlineSeconds) && object.spec.activeDeadlineSeconds >= 1 && object.spec.activeDeadlineSeconds <= 14700",
+        "message": "[rule:deadline] activeDeadlineSeconds must be present and at most the clamp plus the margin",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.terminationGracePeriodSeconds) && object.spec.terminationGracePeriodSeconds >= 0 && object.spec.terminationGracePeriodSeconds <= 30",
+        "message": "[rule:grace] terminationGracePeriodSeconds must be present and at most 30",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, has(c.resources) && has(c.resources.requests) && has(c.resources.limits) && !has(c.resources.claims) && size(c.resources.requests) == 3 && size(c.resources.limits) == 3 && ['cpu', 'memory', 'ephemeral-storage'].all(n, n in c.resources.requests && n in c.resources.limits && isQuantity(c.resources.requests[n]) && isQuantity(c.resources.limits[n]) && quantity(c.resources.requests[n]).compareTo(quantity(c.resources.limits[n])) == 0 && quantity(c.resources.limits[n]).isGreaterThan(quantity('0')) && quantity(c.resources.limits[n]).compareTo(quantity({'cpu': '2', 'memory': '4Gi', 'ephemeral-storage': '20Gi'}[n])) <= 0)) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, has(c.resources) && has(c.resources.requests) && has(c.resources.limits) && !has(c.resources.claims) && size(c.resources.requests) == 3 && size(c.resources.limits) == 3 && ['cpu', 'memory', 'ephemeral-storage'].all(n, n in c.resources.requests && n in c.resources.limits && isQuantity(c.resources.requests[n]) && isQuantity(c.resources.limits[n]) && quantity(c.resources.requests[n]).compareTo(quantity(c.resources.limits[n])) == 0 && quantity(c.resources.limits[n]).isGreaterThan(quantity('0')) && quantity(c.resources.limits[n]).compareTo(quantity({'cpu': '2', 'memory': '4Gi', 'ephemeral-storage': '20Gi'}[n])) <= 0))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, has(c.resources) && has(c.resources.requests) && has(c.resources.limits) && !has(c.resources.claims) && size(c.resources.requests) == 3 && size(c.resources.limits) == 3 && ['cpu', 'memory', 'ephemeral-storage'].all(n, n in c.resources.requests && n in c.resources.limits && isQuantity(c.resources.requests[n]) && isQuantity(c.resources.limits[n]) && quantity(c.resources.requests[n]).compareTo(quantity(c.resources.limits[n])) == 0 && quantity(c.resources.limits[n]).isGreaterThan(quantity('0')) && quantity(c.resources.limits[n]).compareTo(quantity({'cpu': '2', 'memory': '4Gi', 'ephemeral-storage': '20Gi'}[n])) <= 0)))",
+        "message": "[rule:resources] requests equal limits for cpu, memory and ephemeral-storage, within the class maxima",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.metadata.labels) && size(object.metadata.labels) == 8 && ['role', 'repo', 'run', 'job', 'attempt', 'phase', 'manager', 'session'].all(k, ('factory.internal/' + k) in object.metadata.labels) && object.metadata.labels['factory.internal/role'] == 'worker' && object.metadata.labels['factory.internal/repo'].matches('^[0-9a-f]{12}$') && object.metadata.labels['factory.internal/run'].matches('^[0-9a-f]{12}$') && object.metadata.labels['factory.internal/job'].matches('^[0-9a-f]{12}$') && object.metadata.labels['factory.internal/manager'].matches('^[0-9a-f]{12}$') && object.metadata.labels['factory.internal/session'].matches('^[0-9a-f]{32}$') && object.metadata.labels['factory.internal/phase'] in ['plan', 'build', 'review', 'verify', 'preflight'] && object.metadata.labels['factory.internal/attempt'].matches('^[0-9]{1,4}$') && object.metadata.name == 'factory-w-' + object.metadata.labels['factory.internal/session']",
+        "message": "[rule:labels] the eight contract labels with the contract value shapes",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.metadata.annotations) && size(object.metadata.annotations) == 5 && 'karpenter.sh/do-not-disrupt' in object.metadata.annotations && object.metadata.annotations['karpenter.sh/do-not-disrupt'] == 'true' && 'factory.internal/deadline' in object.metadata.annotations && object.metadata.annotations['factory.internal/deadline'].matches('^[0-9]{1,12}$') && 'factory.internal/repo' in object.metadata.annotations && object.metadata.annotations['factory.internal/repo'].matches('^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$') && 'factory.internal/run-id' in object.metadata.annotations && object.metadata.annotations['factory.internal/run-id'].matches('^[A-Za-z0-9][A-Za-z0-9_-]{0,49}$') && 'factory.internal/job-id' in object.metadata.annotations && object.metadata.annotations['factory.internal/job-id'].matches('^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')",
+        "message": "[rule:annotations] do-not-disrupt and the four readable id annotations, nothing else",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "!has(object.metadata.labels) || !('azure.workload.identity/use' in object.metadata.labels)",
+        "message": "[rule:identity-label] the workload identity label is not allowed",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "!has(object.metadata.ownerReferences)",
+        "message": "[rule:owner-references] ownerReferences are not allowed on a worker pod",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "size(object.spec.containers) == 1 && object.spec.containers[0].name == 'worker' && !has(object.spec.initContainers) && !has(object.spec.ephemeralContainers)",
+        "message": "[rule:containers] exactly one container named worker, no init or ephemeral container",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, !has(c.args) && !has(c.ports) && !has(c.livenessProbe) && !has(c.readinessProbe) && !has(c.startupProbe) && !has(c.lifecycle) && !has(c.workingDir) && !has(c.stdin) && !has(c.stdinOnce) && !has(c.tty) && !has(c.volumeDevices) && !has(c.envFrom) && !has(c.resizePolicy) && !has(c.restartPolicy) && has(c.imagePullPolicy) && c.imagePullPolicy == 'IfNotPresent' && (!has(c.terminationMessagePath) || c.terminationMessagePath == '/dev/termination-log') && (!has(c.terminationMessagePolicy) || c.terminationMessagePolicy == 'File')) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, !has(c.args) && !has(c.ports) && !has(c.livenessProbe) && !has(c.readinessProbe) && !has(c.startupProbe) && !has(c.lifecycle) && !has(c.workingDir) && !has(c.stdin) && !has(c.stdinOnce) && !has(c.tty) && !has(c.volumeDevices) && !has(c.envFrom) && !has(c.resizePolicy) && !has(c.restartPolicy) && has(c.imagePullPolicy) && c.imagePullPolicy == 'IfNotPresent' && (!has(c.terminationMessagePath) || c.terminationMessagePath == '/dev/termination-log') && (!has(c.terminationMessagePolicy) || c.terminationMessagePolicy == 'File'))) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, !has(c.args) && !has(c.ports) && !has(c.livenessProbe) && !has(c.readinessProbe) && !has(c.startupProbe) && !has(c.lifecycle) && !has(c.workingDir) && !has(c.stdin) && !has(c.stdinOnce) && !has(c.tty) && !has(c.volumeDevices) && !has(c.envFrom) && !has(c.resizePolicy) && !has(c.restartPolicy) && has(c.imagePullPolicy) && c.imagePullPolicy == 'IfNotPresent' && (!has(c.terminationMessagePath) || c.terminationMessagePath == '/dev/termination-log') && (!has(c.terminationMessagePolicy) || c.terminationMessagePolicy == 'File')))",
+        "message": "[rule:container-fields] no args, ports, probes, lifecycle, workingDir, stdin, tty, devices or envFrom; imagePullPolicy IfNotPresent",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.spec.containers.all(c, has(c.command) && c.command == ['/usr/bin/tini', '--', '/opt/factory/bin/python', '-m', 'factory.podworker']) && (!has(object.spec.initContainers) || object.spec.initContainers.all(c, has(c.command) && c.command == ['/usr/bin/tini', '--', '/opt/factory/bin/python', '-m', 'factory.podworker'])) && (!has(object.spec.ephemeralContainers) || object.spec.ephemeralContainers.all(c, has(c.command) && c.command == ['/usr/bin/tini', '--', '/opt/factory/bin/python', '-m', 'factory.podworker']))",
+        "message": "[rule:command] the command is the fixed wrapper command",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.metadata.name.matches('^factory-w-[0-9a-f]{32}$') && has(object.metadata.namespace) && object.metadata.namespace == 'factory-workers'",
+        "message": "[rule:pod-name] the pod is named factory-w- plus the session id, in the worker namespace",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "object.apiVersion == 'v1' && object.kind == 'Pod' && !has(object.metadata.finalizers) && !has(object.metadata.generateName) && !has(object.metadata.deletionTimestamp) && !has(object.metadata.deletionGracePeriodSeconds)",
+        "message": "[rule:pod-metadata] a plain Pod without finalizers, generateName or deletion fields",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "!has(object.spec.shareProcessNamespace) && !has(object.spec.priorityClassName) && !has(object.spec.runtimeClassName) && !has(object.spec.hostAliases) && !has(object.spec.dnsConfig) && !has(object.spec.imagePullSecrets) && !has(object.spec.topologySpreadConstraints) && !has(object.spec.hostname) && !has(object.spec.subdomain) && !has(object.spec.overhead) && !has(object.spec.readinessGates) && !has(object.spec.schedulingGates) && !has(object.spec.os) && !has(object.spec.setHostnameAsFQDN) && !has(object.spec.resourceClaims) && (!has(object.spec.schedulerName) || object.spec.schedulerName == 'default-scheduler') && (!has(object.spec.dnsPolicy) || object.spec.dnsPolicy == 'ClusterFirst') && (!has(object.spec.priority) || object.spec.priority == 0) && (!has(object.spec.preemptionPolicy) || object.spec.preemptionPolicy == 'PreemptLowerPriority')",
+        "message": "[rule:spec-fields] no other pod spec field of the denied list, and the defaulted ones only with their default value",
+        "reason": "Forbidden"
+      },
+      {
+        "expression": "has(object.spec.enableServiceLinks) && object.spec.enableServiceLinks == false",
+        "message": "[rule:service-links] enableServiceLinks must be present and false",
+        "reason": "Forbidden"
+      }
+    ],
+    "paramKind": {
+      "apiVersion": "v1",
+      "kind": "ConfigMap"
+    }
+  }
+}

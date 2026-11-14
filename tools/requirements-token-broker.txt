@@ -1,0 +1,4 @@
+# Dependencies of tools/token_broker.py ONLY. Install into its own virtualenv
+# (for example /opt/token-broker); the stdlib-only `factory` package must never
+# import any of this.
+cryptography>=50.0.2

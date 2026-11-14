@@ -1,0 +1,125 @@
+name: Factory auto-merge
+
+# Enrols a Factory pull request in GitHub auto-merge. Factory itself never merges
+# (docs/handoff.md): the ruleset in handoff/ruleset.json holds the merge until the
+# repository's CI checks and the `factory/gate` status, posted by the Factory App at the
+# exact head, have passed.
+#
+# Copy this file to .github/workflows/ in each target repository and replace the two
+# placeholders below (the author login and the merge-enrolment App's client ID). The
+# private key of the merge-enrolment App is the repository or organization secret
+# AUTOMERGE_APP_PRIVATE_KEY. This App is NOT the Factory App.
+#
+# Why pull_request_target and not pull_request: a `pull_request` run uses the workflow file
+# from the pull request itself, with this repository's secrets. A `pull_request_target` run
+# uses the reviewed copy on the default branch, and the job below never checks out or runs
+# pull request code. This is a second layer. The control that keeps an agent-written branch
+# from adding any workflow that could read AUTOMERGE_APP_PRIVATE_KEY is that the Factory App
+# has no `workflows` permission, so GitHub refuses a push that creates or changes files under
+# .github/workflows. Never grant the Factory App `workflows` (docs/handoff.md).
+#
+# Why the ruleset check below: a pull request that is already mergeable (CLEAN, HAS_HOOKS,
+# UNSTABLE) is merged at once, never held. Depending on the gh version, `gh pr merge --auto` either
+# does that itself or GitHub refuses to enable auto-merge ("Pull request is in clean status"), and
+# the "Enable auto-merge (squash)" step then squash-merges a CLEAN pull request directly. This file
+# does not claim which one a given gh does; the step handles both. So the job refuses to run unless
+# an active ruleset requires `factory/gate` from a pinned App on the pull request's base branch.
+# That also makes the order of setup safe: the workflow can be installed before the ruleset exists.
+#
+# Why an App token and not GITHUB_TOKEN: events caused by GITHUB_TOKEN do not start new
+# workflow runs, so push workflows on the default branch after the merge would not run.
+
+on:
+  pull_request_target:
+    types: [opened, ready_for_review, labeled]
+
+permissions: {}
+
+# One group per pull request for every run that can enrol. Factory puts a single label,
+# `factory:ready`, on its pull request, so the `opened`, `ready_for_review` and `labeled` runs for
+# one pull request queue up in turn: the second one reaches the "nothing to do" guard of the enrol
+# step instead of racing the first. Every event creates a run, and a run that the job condition
+# below skips still takes its group's single pending slot, and a pending run is cancelled by the
+# next one. So a `labeled` event for any other label (added by a person or another tool) gets a
+# group of its own, made unique by the run id; sharing the pull request's group it could displace
+# the pending `factory:ready` run, which is the only one that enrols. Never cancel a run that is
+# in progress: an enrolment must finish.
+concurrency:
+  group: factory-automerge-${{ github.event.pull_request.number }}${{ (github.event.action == 'labeled' && github.event.label.name != 'factory:ready') && format('-other-{0}', github.run_id) || '' }}
+  cancel-in-progress: false
+
+jobs:
+  enrol:
+    name: enable auto-merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Every condition must hold: a Factory pull request from a branch of this repository
+    # into the default branch (the branch the ruleset protects; Factory pull requests into
+    # another base, allow_non_default_base, are left to a human), authored by the Factory App,
+    # not a draft, labelled factory:ready (and, when this run was caused by a label, that
+    # label is factory:ready).
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch &&
+      github.event.pull_request.user.login == '<<GITHUB_APP_SLUG>>[bot]' &&
+      github.event.pull_request.draft == false &&
+      contains(github.event.pull_request.labels.*.name, 'factory:ready') &&
+      (github.event.action != 'labeled' || github.event.label.name == 'factory:ready')
+    steps:
+      - name: Create a merge-enrolment App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: "<<AUTOMERGE_APP_CLIENT_ID>>"
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Require an active ruleset that holds the merge
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+        run: |
+          set -euo pipefail
+          # Only active rulesets are returned (evaluate and disabled ones are not enforced).
+          branch=$(printf '%s' "$BASE" | jq -sRr @uri)
+          held=$(gh api "repos/${REPO}/rules/branches/${branch}" --jq \
+            '[.[] | select(.type == "required_status_checks")
+              | .parameters.required_status_checks[]?
+              | select(.context == "factory/gate" and .integration_id != null)] | length')
+          if [ "$held" -lt 1 ]; then
+            echo "::error::no active ruleset requires factory/gate from a pinned App on ${BASE}; not enabling auto-merge, because a pull request that is already mergeable is merged at once (docs/handoff.md)"
+            exit 1
+          fi
+      - name: Enable auto-merge (squash)
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # opened, ready_for_review and labeled can all fire for one pull request.
+          state=$(gh pr view "$PR_URL" --json state,autoMergeRequest \
+            --jq '"\(.state) \(.autoMergeRequest != null)"')
+          if [ "$state" != "OPEN false" ]; then
+            echo "nothing to do ($state)"
+            exit 0
+          fi
+          # Both calls are pinned to the head this event saw: a push in between fails the call
+          # instead of merging something nobody reviewed, and the next event handles the new head.
+          if gh pr merge --auto --squash --match-head-commit "$HEAD_SHA" "$PR_URL"; then
+            exit 0
+          fi
+          # GitHub refuses to enable auto-merge on a pull request that is already mergeable
+          # ("Pull request is in clean status"): CI and factory/gate finished before the labels
+          # landed, so there is nothing left to wait for. Merge it now. The ruleset still decides:
+          # the previous step proved an active ruleset requires factory/gate from the pinned App,
+          # and a merge call succeeds only when every required check has passed on this head.
+          merge_state=$(gh pr view "$PR_URL" --json mergeStateStatus --jq .mergeStateStatus)
+          if [ "$merge_state" != "CLEAN" ]; then
+            echo "::error::auto-merge could not be enabled and the pull request is not mergeable (${merge_state})"
+            exit 1
+          fi
+          echo "already mergeable: merging now"
+          gh pr merge --squash --match-head-commit "$HEAD_SHA" "$PR_URL"

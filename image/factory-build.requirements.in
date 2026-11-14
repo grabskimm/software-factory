@@ -1,0 +1,8 @@
+# Build backend for the `factory` package (pyproject.toml: requires = ["setuptools>=77"];
+# 77 is the first setuptools that reads the SPDX `license` string and `license-files`).
+# The Dockerfile installs the hash-locked image/factory-build.requirements.txt into
+# the build venv and then builds with --no-build-isolation, so no unpinned build
+# dependency is fetched while the image is built. The lock pins setuptools==84.2.1,
+# which satisfies the floor. Regenerate the .txt with pip-compile (image/README.md,
+# "Bumping a pin").
+setuptools>=77

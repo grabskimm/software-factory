@@ -1,0 +1,29 @@
+{
+  "apiVersion": "admissionregistration.k8s.io/v1",
+  "kind": "ValidatingAdmissionPolicyBinding",
+  "metadata": {
+    "name": "factory-worker-pods",
+    "labels": {
+      "app.kubernetes.io/part-of": "factory"
+    }
+  },
+  "spec": {
+    "policyName": "factory-worker-pods",
+    "validationActions": [
+      "Deny",
+      "Audit"
+    ],
+    "matchResources": {
+      "namespaceSelector": {
+        "matchLabels": {
+          "kubernetes.io/metadata.name": "factory-workers"
+        }
+      }
+    },
+    "paramRef": {
+      "name": "worker-policy-params",
+      "namespace": "factory-workers",
+      "parameterNotFoundAction": "Deny"
+    }
+  }
+}

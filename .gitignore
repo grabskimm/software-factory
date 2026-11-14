@@ -1,0 +1,36 @@
+runs/
+# the config and data directory of the README's manager example, if it is run from a checkout
+.factory/
+__pycache__/
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# local environment files and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kubeconfig
+.claude/settings.local.json
+
+# Terraform state and caches (infra/.gitignore has the full list for infra/;
+# the tracked *.auto.tfvars and terraform.tfvars.example are not ignored here)
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# tool caches, coverage, editors, logs
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+node_modules/
+.DS_Store
+.idea/
+.vscode/
+*.log

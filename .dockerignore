@@ -1,0 +1,55 @@
+# Build context allowlist: ignore everything, then re-include only what the
+# Dockerfile COPYs or bind-mounts. Keeps .git, runs/, tests/, .github/, .claude/,
+# infra/, docs/, handoff/ and any local virtualenv, node_modules or terraform state
+# out of the context (and out of every image layer). If you add a COPY to the
+# Dockerfile, add its source here.
+*
+
+# factory package (pip builds it in the python-build stage)
+!pyproject.toml
+!README.md
+!LICENSE
+!NOTICE
+!src
+# non-overridable Claude Code baseline
+!managed-settings.json
+
+# tools shipped in the image
+!tools
+tools/*
+!tools/token_broker.py
+!tools/sandbox_e2e.py
+
+# spike procedures that run inside the container (spikes/README.md)
+!spikes
+spikes/*
+!spikes/s1_bwrap.sh
+!spikes/s2_nfs.py
+!spikes/s3_uid_split.py
+!spikes/s3b_data_tree.py
+
+# image build inputs
+!image
+image/*
+!image/entrypoint.sh
+!image/sandbox-check.sh
+!image/toolchains.sh
+!image/factory-build.requirements.txt
+!image/token-broker.requirements.txt
+!image/claude
+image/claude/*
+!image/claude/package.json
+!image/claude/package-lock.json
+
+# never, even inside the allowed directories
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+**/node_modules
+**/.venv
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+**/.env
+**/.env.*
+**/*.pem

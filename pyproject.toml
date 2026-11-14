@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# The distribution name is not published to PyPI (install from a git checkout). The import package
+# and both console scripts below are called `factory`.
+name = "software-factory"
+version = "0.1.0"
+description = "Resumable GitHub issue factory: plans issues into jobs and runs Claude Code workers in git worktrees."
+readme = "README.md"
+requires-python = ">=3.11"
+# The SPDX string form of the license (PEP 639) and license-files need setuptools 77 or newer, which is why
+# build-system.requires says so; the table form and the "License ::" classifiers are deprecated and are
+# dropped. LICENSE and NOTICE go into the dist-info of every wheel.
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "grabskimm" }]
+keywords = ["github", "issues", "claude-code", "automation", "agents", "pull-requests"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Operating System :: POSIX",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development",
+]
+# The factory package is stdlib-only by design. The only non-stdlib code is the
+# separate token broker (tools/token_broker.py), which has its own environment.
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/grabskimm/software-factory"
+Repository = "https://github.com/grabskimm/software-factory.git"
+Issues = "https://github.com/grabskimm/software-factory/issues"
+
+[project.scripts]
+factory = "factory.cli:main"
+factory-manager = "factory.manager:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+# prompts/*.md are the agent prompts; ui/* is the static dashboard page the manager serves at /ui/ (webui.py), ui/vendor/* the vendored sign-in library.
+factory = ["prompts/*.md", "ui/*.html", "ui/*.js", "ui/*.css", "ui/vendor/*.js", "ui/vendor/*.LICENSE", "ui/vendor/*.md"]

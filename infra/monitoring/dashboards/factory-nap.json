@@ -1,0 +1,406 @@
+{
+  "uid": "factory-nap",
+  "title": "Factory node auto-provisioning",
+  "tags": [
+    "factory"
+  ],
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "graphTooltip": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Worker pods and nodes (kube-state-metrics)",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Pending worker pods",
+      "description": "Worker pods in phase Pending. Zero until the pod backend creates worker pods (issue 145).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "factory-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "factory:worker_pods_pending",
+          "legendFormat": "",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Unschedulable worker pods",
+      "description": "Worker pods the scheduler has marked Unschedulable (they wait for a node).",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "factory-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "factory:worker_pods_unschedulable",
+          "legendFormat": "",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Nodes of node auto-provisioning",
+      "description": "Nodes that carry the label karpenter.sh/nodepool.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "factory-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "factory:nap_nodes_total",
+          "legendFormat": "",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Worker pods Evicted by the kubelet",
+      "description": "Pods left Evicted by node pressure. It does not count pods that node auto-provisioning drained: those are deleted, and their evictions and DisruptionBlocked events are not available from kube-state-metrics.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "factory-prometheus"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "sum(kube_pod_status_reason{namespace=\"factory-workers\",reason=\"Evicted\"})",
+          "legendFormat": "",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        },
+        "colorMode": "value",
+        "graphMode": "none"
+      }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Worker pods by phase",
+      "description": "Worker pods that are in each phase now.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "factory-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "sum by (phase) (kube_pod_status_phase{namespace=\"factory-workers\"} == 1)",
+          "legendFormat": "{{phase}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Nodes by NodePool",
+      "description": "Nodes of node auto-provisioning per NodePool.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "factory-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "factory:nap_nodes",
+          "legendFormat": "{{nodepool}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "row",
+      "title": "Time to node",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "panels": []
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Worker pod: creation to Ready",
+      "description": "The slowest and the average worker pod now present, in seconds from the creation of the pod to its last transition to Ready. This is a per-pod gauge, not a histogram: kube-state-metrics gives no distribution (docs/metrics.md). A cold start measured 94 to 101 seconds. kube_pod_status_ready_time is an EXPERIMENTAL series.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "factory-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 14
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "max(factory:worker_pod_time_to_ready_seconds)",
+          "legendFormat": "slowest",
+          "refId": "A",
+          "range": true
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "avg(factory:worker_pod_time_to_ready_seconds)",
+          "legendFormat": "average",
+          "refId": "B",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "NodeClaim: creation to each condition",
+      "description": "Seconds from the creation of a NodeClaim to its Launched, Registered and Initialized conditions (the slowest claim now present). Needs monitoring_nodeclaim_metrics_enabled; empty without it.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "factory-prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 14
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "factory-prometheus"
+          },
+          "expr": "max by (type) (factory:nodeclaim_condition_seconds)",
+          "legendFormat": "{{type}}",
+          "refId": "A",
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    }
+  ]
+}

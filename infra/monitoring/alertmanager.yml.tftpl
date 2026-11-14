@@ -1,0 +1,27 @@
+# Alertmanager configuration, rendered by Terraform (infra/monitoring.tf) only when alert_receiver is
+# not "none". The destination URL is read from a file that the Key Vault CSI volume provides; it is
+# never in this file, in Terraform state or in a ConfigMap.
+route:
+  receiver: operator
+  group_by: [alertname, repo]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 12h
+
+receivers:
+  - name: operator
+%{ if receiver == "slack" ~}
+    slack_configs:
+      - api_url_file: /mnt/secrets/${url_file}
+        send_resolved: true
+%{ endif ~}
+%{ if receiver == "msteams" ~}
+    msteamsv2_configs:
+      - webhook_url_file: /mnt/secrets/${url_file}
+        send_resolved: true
+%{ endif ~}
+%{ if receiver == "webhook" ~}
+    webhook_configs:
+      - url_file: /mnt/secrets/${url_file}
+        send_resolved: true
+%{ endif ~}

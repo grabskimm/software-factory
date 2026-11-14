@@ -1,0 +1,15 @@
+# The cluster of tools/local_pod_e2e/harness.py: the feature gates the admission policies need (tools/policy_matrix.py), the default
+# CNI (kindnet, which enforces NetworkPolicy; see docs/pod-backend-local-e2e.md, deviation V1: Calico and Cilium could not run on the
+# kernel of the test machine) and three nodes: the control plane, a node for the manager and a node for the worker pool.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+featureGates:
+  UserNamespacesSupport: true
+  ProcMountType: true
+networking:
+  podSubnet: 10.244.0.0/16
+  serviceSubnet: 10.96.0.0/16
+nodes:
+  - role: control-plane
+  - role: worker
+  - role: worker

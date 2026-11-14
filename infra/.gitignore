@@ -1,0 +1,28 @@
+# Never commit local state, plans, provider caches or real variable files.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!terraform.tfvars.example
+!image.auto.tfvars
+!monitoring-images.auto.tfvars
+# The one non-secret input committed on purpose: the custom host name (ingress.auto.tfvars; the committed value is an example, set your own). Nothing else of the deployment goes here.
+!ingress.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+__pycache__/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+kubeconfig

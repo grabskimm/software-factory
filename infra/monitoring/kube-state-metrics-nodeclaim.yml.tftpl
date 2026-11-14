@@ -1,0 +1,50 @@
+# kube-state-metrics custom resource state configuration (issue 149), rendered by Terraform (infra/monitoring.tf) and mounted only
+# when monitoring_nodeclaim_metrics_enabled is true. Nothing here is a secret.
+#
+# It exposes two series for the NodeClaim objects of node auto-provisioning (Karpenter, which runs in the AKS-managed control plane;
+# only its custom resources are readable from the cluster):
+#
+#   kube_customresource_nodeclaim_created_timestamp_seconds                      metadata.creationTimestamp, Unix seconds
+#   kube_customresource_nodeclaim_condition_last_transition_timestamp_seconds    lastTransitionTime of each status condition, Unix seconds
+#
+# Time to node, step by step, is the second series minus the first for the conditions Launched, Registered and Initialized
+# (infra/monitoring/alert-rules.json, the recording rule factory:nodeclaim_condition_seconds).
+#
+# UNVERIFIED, none of it was started against a cluster:
+#   * the version below: the NodePool object of this repository (worker_pool.tf) uses karpenter.sh/v1, so v1 is the expectation, but
+#     which version NAP serves for NodeClaim is not recorded (kubectl get crd nodeclaims.karpenter.sh -o jsonpath='{.spec.versions[*].name}');
+#   * that kube-state-metrics turns an RFC 3339 string at `valueFrom` into Unix seconds (its documentation describes numbers and
+#     timestamps; the pinned version was not run). If it does not, the second series is empty or the pod logs an error, and the pod
+#     series (kube_pod_created, kube_pod_status_ready_time) still give time to node;
+#   * the exact name that results from the default metric name prefix `kube_customresource_` plus `name:` below;
+#   * how this version behaves when the CRD does not exist (a cluster without NAP): that is why this file is mounted only on request.
+#
+# `name` is a per-object label (Karpenter generates it, `<nodepool>-<random>`; no issue or repository text). The series need it to be
+# unique, and every query and recording rule aggregates it away (a NodeClaim lives as long as its node).
+kind: CustomResourceStateMetrics
+spec:
+  resources:
+    - groupVersionKind:
+        group: karpenter.sh
+        kind: NodeClaim
+        version: ${api_version}
+      labelsFromPath:
+        name: [metadata, name]
+        nodepool: [metadata, labels, karpenter.sh/nodepool]
+      metrics:
+        - name: nodeclaim_created_timestamp_seconds
+          help: Creation time of the NodeClaim, Unix seconds.
+          each:
+            type: Gauge
+            gauge:
+              path: [metadata, creationTimestamp]
+        - name: nodeclaim_condition_last_transition_timestamp_seconds
+          help: Last transition time of each status condition of the NodeClaim, Unix seconds.
+          each:
+            type: Gauge
+            gauge:
+              path: [status, conditions]
+              labelsFromPath:
+                type: [type]
+                status: [status]
+              valueFrom: [lastTransitionTime]

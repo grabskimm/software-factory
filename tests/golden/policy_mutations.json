@@ -1,0 +1,2658 @@
+{
+  "golden": "pod_standard_build.json",
+  "mutations": [
+    {
+      "id": "image-by-tag",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/image",
+          "value": "registry.example.invalid/factory:latest"
+        }
+      ],
+      "rule": "image"
+    },
+    {
+      "id": "image-same-repository-other-digest",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/image",
+          "value": "registry.example.invalid/factory@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        }
+      ],
+      "rule": "image"
+    },
+    {
+      "id": "image-other-registry",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/image",
+          "value": "other.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+        }
+      ],
+      "rule": "image"
+    },
+    {
+      "id": "image-without-digest",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/image",
+          "value": "registry.example.invalid/factory"
+        }
+      ],
+      "rule": "image"
+    },
+    {
+      "id": "image-second-container-other-digest",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/-",
+          "value": {
+            "command": [
+              "/bin/sleep",
+              "infinity"
+            ],
+            "image": "registry.example.invalid/factory@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "name": "sidecar"
+          }
+        }
+      ],
+      "rule": "image"
+    },
+    {
+      "id": "image-init-container-other-digest",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/initContainers",
+          "value": [
+            {
+              "command": [
+                "/bin/sleep",
+                "infinity"
+              ],
+              "image": "registry.example.invalid/factory@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+              "name": "sidecar"
+            }
+          ]
+        }
+      ],
+      "rule": "image"
+    },
+    {
+      "id": "privileged-in-second-container",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/-",
+          "value": {
+            "command": [
+              "/bin/sleep",
+              "infinity"
+            ],
+            "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "name": "sidecar",
+            "securityContext": {
+              "privileged": true
+            }
+          }
+        }
+      ],
+      "rule": "privileged"
+    },
+    {
+      "id": "capability-in-init-container",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/initContainers",
+          "value": [
+            {
+              "command": [
+                "/bin/sleep",
+                "infinity"
+              ],
+              "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+              "name": "sidecar",
+              "securityContext": {
+                "capabilities": {
+                  "add": [
+                    "NET_ADMIN"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "rule": "capabilities"
+    },
+    {
+      "id": "run-as-in-ephemeral-container",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/ephemeralContainers",
+          "value": [
+            {
+              "command": [
+                "/bin/sleep",
+                "infinity"
+              ],
+              "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+              "name": "sidecar",
+              "securityContext": {
+                "runAsUser": 0
+              }
+            }
+          ]
+        }
+      ],
+      "rule": "run-as"
+    },
+    {
+      "id": "seccomp-in-second-container",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/-",
+          "value": {
+            "command": [
+              "/bin/sleep",
+              "infinity"
+            ],
+            "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "name": "sidecar",
+            "securityContext": {
+              "seccompProfile": {
+                "type": "Unconfined"
+              }
+            }
+          }
+        }
+      ],
+      "rule": "seccomp"
+    },
+    {
+      "id": "env-secret-key-ref-in-second-container",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/-",
+          "value": {
+            "command": [
+              "/bin/sleep",
+              "infinity"
+            ],
+            "env": [
+              {
+                "name": "FACTORY_RELAY_URL",
+                "valueFrom": {
+                  "secretKeyRef": {
+                    "key": "y",
+                    "name": "x"
+                  }
+                }
+              }
+            ],
+            "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "name": "sidecar"
+          }
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "proc-mount-default-in-second-container",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/-",
+          "value": {
+            "command": [
+              "/bin/sleep",
+              "infinity"
+            ],
+            "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "name": "sidecar",
+            "securityContext": {
+              "procMount": "Default"
+            }
+          }
+        }
+      ],
+      "rule": "proc-mount"
+    },
+    {
+      "id": "host-users-true",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/hostUsers",
+          "value": true
+        }
+      ],
+      "rule": "host-users"
+    },
+    {
+      "id": "host-users-absent",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/hostUsers"
+        }
+      ],
+      "rule": "host-users"
+    },
+    {
+      "id": "host-network-true",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/hostNetwork",
+          "value": true
+        }
+      ],
+      "rule": "host-network"
+    },
+    {
+      "id": "host-pid-true",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/hostPID",
+          "value": true
+        }
+      ],
+      "rule": "host-pid"
+    },
+    {
+      "id": "host-ipc-true",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/hostIPC",
+          "value": true
+        }
+      ],
+      "rule": "host-ipc"
+    },
+    {
+      "id": "node-name-set",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/nodeName",
+          "value": "aks-node-0"
+        }
+      ],
+      "rule": "node-name"
+    },
+    {
+      "id": "volume-host-path-added",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/-",
+          "value": {
+            "hostPath": {
+              "path": "/"
+            },
+            "name": "host"
+          }
+        }
+      ],
+      "rule": "host-path"
+    },
+    {
+      "id": "volume-data-is-host-path",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/volumes/0",
+          "value": {
+            "hostPath": {
+              "path": "/var/lib"
+            },
+            "name": "data"
+          }
+        }
+      ],
+      "rule": "host-path"
+    },
+    {
+      "id": "volume-projected-token",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/-",
+          "value": {
+            "name": "token",
+            "projected": {
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3600,
+                    "path": "t"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-other-pods-secret",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/volumes/2/secret/secretName",
+          "value": "factory-w-ffffffffffffffffffffffffffffffff-s"
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-empty-dir-without-size-limit",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/volumes/0/emptyDir",
+          "value": {}
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-empty-dir-size-limit-above-class",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/volumes/0/emptyDir/sizeLimit",
+          "value": "100Gi"
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-empty-dir-size-limit-unparseable",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/volumes/1/emptyDir/sizeLimit",
+          "value": "1e3"
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-empty-dir-in-memory",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/0/emptyDir/medium",
+          "value": "Memory"
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-config-map",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/-",
+          "value": {
+            "configMap": {
+              "name": "x"
+            },
+            "name": "cm"
+          }
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-csi",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/-",
+          "value": {
+            "csi": {
+              "driver": "secrets-store.csi.k8s.io"
+            },
+            "name": "csi"
+          }
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-nfs",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/-",
+          "value": {
+            "name": "nfs",
+            "nfs": {
+              "path": "/",
+              "server": "x"
+            }
+          }
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-downward-api",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/-",
+          "value": {
+            "downwardAPI": {
+              "items": []
+            },
+            "name": "dw"
+          }
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-extra-empty-dir",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/-",
+          "value": {
+            "emptyDir": {
+              "sizeLimit": "1Gi"
+            },
+            "name": "extra"
+          }
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-session-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/volumes/2"
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-session-mode-0644",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/volumes/2/secret/defaultMode",
+          "value": 420
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-session-optional",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/2/secret/optional",
+          "value": true
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "volume-session-items",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/volumes/2/secret/items",
+          "value": [
+            {
+              "key": "token",
+              "path": "t"
+            }
+          ]
+        }
+      ],
+      "rule": "volumes"
+    },
+    {
+      "id": "mount-session-writable",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/volumeMounts/2/readOnly"
+        }
+      ],
+      "rule": "volume-mounts"
+    },
+    {
+      "id": "mount-extra-path",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/volumeMounts/-",
+          "value": {
+            "mountPath": "/etc",
+            "name": "data"
+          }
+        }
+      ],
+      "rule": "volume-mounts"
+    },
+    {
+      "id": "mount-sub-path",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/volumeMounts/0/subPath",
+          "value": "x"
+        }
+      ],
+      "rule": "volume-mounts"
+    },
+    {
+      "id": "mount-path-moved",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/volumeMounts/0/mountPath",
+          "value": "/"
+        }
+      ],
+      "rule": "volume-mounts"
+    },
+    {
+      "id": "mount-session-read-only-as-number",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/volumeMounts/2/readOnly",
+          "value": 1
+        }
+      ],
+      "rule": "volume-mounts"
+    },
+    {
+      "id": "mount-all-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/volumeMounts",
+          "value": []
+        }
+      ],
+      "rule": "volume-mounts"
+    },
+    {
+      "id": "env-name-with-token",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/env/-",
+          "value": {
+            "name": "GITHUB_TOKEN",
+            "value": "placeholder"
+          }
+        }
+      ],
+      "rule": "env-names"
+    },
+    {
+      "id": "env-name-azure-client-id",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/env/-",
+          "value": {
+            "name": "AZURE_CLIENT_ID",
+            "value": "placeholder"
+          }
+        }
+      ],
+      "rule": "env-names"
+    },
+    {
+      "id": "env-name-with-key",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/env/-",
+          "value": {
+            "name": "ANTHROPIC_API_KEY",
+            "value": "placeholder"
+          }
+        }
+      ],
+      "rule": "env-names"
+    },
+    {
+      "id": "env-name-not-on-allow-list",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/env/-",
+          "value": {
+            "name": "SOME_SETTING",
+            "value": "placeholder"
+          }
+        }
+      ],
+      "rule": "env-names"
+    },
+    {
+      "id": "env-name-repeated",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/env/-",
+          "value": {
+            "name": "FACTORY_SESSION_ID",
+            "value": "placeholder"
+          }
+        }
+      ],
+      "rule": "env-names"
+    },
+    {
+      "id": "env-name-missing-node-ip",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/env/5"
+        }
+      ],
+      "rule": "env-names"
+    },
+    {
+      "id": "env-not-a-list",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env",
+          "value": {}
+        }
+      ],
+      "rule": "env-names"
+    },
+    {
+      "id": "env-secret-key-ref",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/1",
+          "value": {
+            "name": "FACTORY_RELAY_URL",
+            "valueFrom": {
+              "secretKeyRef": {
+                "key": "y",
+                "name": "x"
+              }
+            }
+          }
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-config-map-key-ref",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/1",
+          "value": {
+            "name": "FACTORY_RELAY_URL",
+            "valueFrom": {
+              "configMapKeyRef": {
+                "key": "y",
+                "name": "x"
+              }
+            }
+          }
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-resource-field-ref",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/1",
+          "value": {
+            "name": "FACTORY_RELAY_URL",
+            "valueFrom": {
+              "resourceFieldRef": {
+                "resource": "limits.cpu"
+              }
+            }
+          }
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-session-id-from-field",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/0",
+          "value": {
+            "name": "FACTORY_SESSION_ID",
+            "valueFrom": {
+              "fieldRef": {
+                "fieldPath": "metadata.name"
+              }
+            }
+          }
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-pod-uid-as-plain-value",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/4",
+          "value": {
+            "name": "FACTORY_POD_UID",
+            "value": "placeholder"
+          }
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-node-ip-from-pod-ip",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/5",
+          "value": {
+            "name": "FACTORY_NODE_IP",
+            "valueFrom": {
+              "fieldRef": {
+                "fieldPath": "status.podIP"
+              }
+            }
+          }
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-from-secret",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/envFrom",
+          "value": [
+            {
+              "secretRef": {
+                "name": "x"
+              }
+            }
+          ]
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-value-and-value-from",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/env/3/value",
+          "value": "placeholder"
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-value-not-a-string",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/2/value",
+          "value": 1800
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-session-id-differs-from-label",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/0/value",
+          "value": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-deadline-differs-from-annotation",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/2/value",
+          "value": "1"
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-relay-url-with-credentials",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/1/value",
+          "value": "http://user:pw@10.244.1.7:8090"
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-relay-url-other-port",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/1/value",
+          "value": "http://10.244.1.7:80"
+        }
+      ],
+      "rule": "env-source"
+    },
+    {
+      "id": "env-collect-env-true",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/env/9/value",
+          "value": "True"
+        }
+      ],
+      "rule": "env-collect"
+    },
+    {
+      "id": "env-collect-env-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/env/9"
+        }
+      ],
+      "rule": "env-collect"
+    },
+    {
+      "id": "node-selector-extra-key",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/nodeSelector/extra",
+          "value": "x"
+        }
+      ],
+      "rule": "node-selector"
+    },
+    {
+      "id": "node-selector-factory-pool",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/nodeSelector/pool",
+          "value": "factory"
+        }
+      ],
+      "rule": "node-selector"
+    },
+    {
+      "id": "node-selector-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/nodeSelector"
+        }
+      ],
+      "rule": "node-selector"
+    },
+    {
+      "id": "toleration-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/tolerations",
+          "value": []
+        }
+      ],
+      "rule": "tolerations"
+    },
+    {
+      "id": "toleration-extra",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/tolerations/-",
+          "value": {
+            "key": "other",
+            "operator": "Exists"
+          }
+        }
+      ],
+      "rule": "tolerations"
+    },
+    {
+      "id": "toleration-wildcard",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/tolerations",
+          "value": [
+            {
+              "operator": "Exists"
+            }
+          ]
+        }
+      ],
+      "rule": "tolerations"
+    },
+    {
+      "id": "toleration-manager-taint",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/tolerations/0/value",
+          "value": "manager"
+        }
+      ],
+      "rule": "tolerations"
+    },
+    {
+      "id": "anti-affinity-missing",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/affinity"
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-other-repository",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/affinity/podAntiAffinity/requiredDuringSchedulingIgnoredDuringExecution/0/labelSelector/matchExpressions/0/values/0",
+          "value": "aaaaaaaaaaaa"
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-values-also-name-another-repository",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/affinity/podAntiAffinity/requiredDuringSchedulingIgnoredDuringExecution/0/labelSelector/matchExpressions/0/values/-",
+          "value": "aaaaaaaaaaaa"
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-no-values",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/affinity/podAntiAffinity/requiredDuringSchedulingIgnoredDuringExecution/0/labelSelector/matchExpressions/0/values",
+          "value": []
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-operator-in",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/affinity/podAntiAffinity/requiredDuringSchedulingIgnoredDuringExecution/0/labelSelector/matchExpressions/0/operator",
+          "value": "In"
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-zone-topology",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/affinity/podAntiAffinity/requiredDuringSchedulingIgnoredDuringExecution/0/topologyKey",
+          "value": "topology.kubernetes.io/zone"
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-other-label-key",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/affinity/podAntiAffinity/requiredDuringSchedulingIgnoredDuringExecution/0/labelSelector/matchExpressions/0/key",
+          "value": "app"
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-other-namespaces",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/affinity/podAntiAffinity/requiredDuringSchedulingIgnoredDuringExecution/0/namespaces",
+          "value": [
+            "factory"
+          ]
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-namespace-selector",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/affinity/podAntiAffinity/requiredDuringSchedulingIgnoredDuringExecution/0/namespaceSelector",
+          "value": {}
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-preferred-only",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/affinity",
+          "value": {
+            "podAntiAffinity": {
+              "preferredDuringSchedulingIgnoredDuringExecution": [
+                {
+                  "podAffinityTerm": {
+                    "labelSelector": {
+                      "matchLabels": {
+                        "app": "x"
+                      }
+                    },
+                    "topologyKey": "kubernetes.io/hostname"
+                  },
+                  "weight": 100
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-plus-pod-affinity",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/affinity/podAffinity",
+          "value": {}
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "anti-affinity-plus-node-affinity",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/affinity/nodeAffinity",
+          "value": {}
+        }
+      ],
+      "rule": "anti-affinity"
+    },
+    {
+      "id": "restart-policy-always",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/restartPolicy",
+          "value": "Always"
+        }
+      ],
+      "rule": "restart-policy"
+    },
+    {
+      "id": "restart-policy-on-failure",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/restartPolicy",
+          "value": "OnFailure"
+        }
+      ],
+      "rule": "restart-policy"
+    },
+    {
+      "id": "restart-policy-absent",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/restartPolicy"
+        }
+      ],
+      "rule": "restart-policy"
+    },
+    {
+      "id": "deadline-absent",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/activeDeadlineSeconds"
+        }
+      ],
+      "rule": "deadline"
+    },
+    {
+      "id": "deadline-above-clamp-plus-margin",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/activeDeadlineSeconds",
+          "value": 14701
+        }
+      ],
+      "rule": "deadline"
+    },
+    {
+      "id": "deadline-a-day",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/activeDeadlineSeconds",
+          "value": 86400
+        }
+      ],
+      "rule": "deadline"
+    },
+    {
+      "id": "deadline-zero",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/activeDeadlineSeconds",
+          "value": 0
+        }
+      ],
+      "rule": "deadline"
+    },
+    {
+      "id": "deadline-boolean",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/activeDeadlineSeconds",
+          "value": true
+        }
+      ],
+      "rule": "deadline"
+    },
+    {
+      "id": "deadline-string",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/activeDeadlineSeconds",
+          "value": "2100"
+        }
+      ],
+      "rule": "deadline"
+    },
+    {
+      "id": "grace-31",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/terminationGracePeriodSeconds",
+          "value": 31
+        }
+      ],
+      "rule": "grace"
+    },
+    {
+      "id": "grace-absent",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/terminationGracePeriodSeconds"
+        }
+      ],
+      "rule": "grace"
+    },
+    {
+      "id": "grace-string",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/terminationGracePeriodSeconds",
+          "value": "30"
+        }
+      ],
+      "rule": "grace"
+    },
+    {
+      "id": "resources-requests-below-limits",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/requests/cpu",
+          "value": "1"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-cpu-above-class",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/requests/cpu",
+          "value": "8"
+        },
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/limits/cpu",
+          "value": "8"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-memory-above-class",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/requests/memory",
+          "value": "64Gi"
+        },
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/limits/memory",
+          "value": "64Gi"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-ephemeral-above-class",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/requests/ephemeral-storage",
+          "value": "200Gi"
+        },
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/limits/ephemeral-storage",
+          "value": "200Gi"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-no-ephemeral-request",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/resources/requests/ephemeral-storage"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-no-ephemeral-limit",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/resources/limits/ephemeral-storage"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-extra-device",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/resources/requests/nvidia.com~1gpu",
+          "value": "1"
+        },
+        {
+          "op": "add",
+          "path": "/spec/containers/0/resources/limits/nvidia.com~1gpu",
+          "value": "1"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-no-limits",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/resources/limits"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-claims",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/resources/claims",
+          "value": [
+            {
+              "name": "x"
+            }
+          ]
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "resources-unparseable",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/limits/cpu",
+          "value": "1e3"
+        },
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/resources/requests/cpu",
+          "value": "1e3"
+        }
+      ],
+      "rule": "resources"
+    },
+    {
+      "id": "label-run-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/metadata/labels/factory.internal~1run"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "label-manager-not-12-hex",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/labels/factory.internal~1manager",
+          "value": "ABCDEF"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "label-manager-13-hex",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/labels/factory.internal~1manager",
+          "value": "abcdef0123456"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "label-role-manager",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/labels/factory.internal~1role",
+          "value": "manager"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "label-phase-unknown",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/labels/factory.internal~1phase",
+          "value": "deploy"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "label-session-differs-from-name",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/labels/factory.internal~1session",
+          "value": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "label-attempt-not-digits",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/labels/factory.internal~1attempt",
+          "value": "one"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "label-extra",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/metadata/labels/app",
+          "value": "x"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "label-repo-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/metadata/labels/factory.internal~1repo"
+        }
+      ],
+      "rule": "labels"
+    },
+    {
+      "id": "annotation-do-not-disrupt-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/metadata/annotations/karpenter.sh~1do-not-disrupt"
+        }
+      ],
+      "rule": "annotations"
+    },
+    {
+      "id": "annotation-do-not-disrupt-false",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/annotations/karpenter.sh~1do-not-disrupt",
+          "value": "false"
+        }
+      ],
+      "rule": "annotations"
+    },
+    {
+      "id": "annotation-extra",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/metadata/annotations/container.apparmor.security.beta.kubernetes.io~1worker",
+          "value": "unconfined"
+        }
+      ],
+      "rule": "annotations"
+    },
+    {
+      "id": "annotation-deadline-not-digits",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/annotations/factory.internal~1deadline",
+          "value": "soon"
+        }
+      ],
+      "rule": "annotations"
+    },
+    {
+      "id": "annotation-repository-not-owner-slash-name",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/annotations/factory.internal~1repo",
+          "value": "not a repository"
+        }
+      ],
+      "rule": "annotations"
+    },
+    {
+      "id": "annotations-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/metadata/annotations"
+        }
+      ],
+      "rule": "annotations"
+    },
+    {
+      "id": "identity-label-added",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/metadata/labels/azure.workload.identity~1use",
+          "value": "true"
+        }
+      ],
+      "rule": "identity-label"
+    },
+    {
+      "id": "owner-references-added",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/metadata/ownerReferences",
+          "value": [
+            {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "name": "x",
+              "uid": "y"
+            }
+          ]
+        }
+      ],
+      "rule": "owner-references"
+    },
+    {
+      "id": "service-account-factory",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/serviceAccountName",
+          "value": "factory"
+        }
+      ],
+      "rule": "service-account"
+    },
+    {
+      "id": "service-account-default",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/serviceAccountName",
+          "value": "default"
+        }
+      ],
+      "rule": "service-account"
+    },
+    {
+      "id": "service-account-absent",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/serviceAccountName"
+        }
+      ],
+      "rule": "service-account"
+    },
+    {
+      "id": "service-account-deprecated-alias",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/serviceAccount",
+          "value": "factory"
+        }
+      ],
+      "rule": "service-account"
+    },
+    {
+      "id": "automount-true",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/automountServiceAccountToken",
+          "value": true
+        }
+      ],
+      "rule": "automount"
+    },
+    {
+      "id": "automount-absent",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/automountServiceAccountToken"
+        }
+      ],
+      "rule": "automount"
+    },
+    {
+      "id": "service-links-true",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/enableServiceLinks",
+          "value": true
+        }
+      ],
+      "rule": "service-links"
+    },
+    {
+      "id": "service-links-absent",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/enableServiceLinks"
+        }
+      ],
+      "rule": "service-links"
+    },
+    {
+      "id": "container-second",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/-",
+          "value": {
+            "command": [
+              "/bin/sleep",
+              "infinity"
+            ],
+            "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "name": "sidecar"
+          }
+        }
+      ],
+      "rule": "containers"
+    },
+    {
+      "id": "container-init",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/initContainers",
+          "value": [
+            {
+              "command": [
+                "/bin/sleep",
+                "infinity"
+              ],
+              "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+              "name": "sidecar"
+            }
+          ]
+        }
+      ],
+      "rule": "containers"
+    },
+    {
+      "id": "container-ephemeral",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/ephemeralContainers",
+          "value": [
+            {
+              "command": [
+                "/bin/sleep",
+                "infinity"
+              ],
+              "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+              "name": "sidecar"
+            }
+          ]
+        }
+      ],
+      "rule": "containers"
+    },
+    {
+      "id": "container-renamed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/name",
+          "value": "sidecar"
+        }
+      ],
+      "rule": "containers"
+    },
+    {
+      "id": "containers-empty",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers",
+          "value": []
+        }
+      ],
+      "rule": "containers"
+    },
+    {
+      "id": "container-args",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/args",
+          "value": [
+            "--help"
+          ]
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "container-ports",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/ports",
+          "value": [
+            {
+              "containerPort": 8090
+            }
+          ]
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "container-host-port",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/ports",
+          "value": [
+            {
+              "containerPort": 8090,
+              "hostPort": 8090
+            }
+          ]
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "container-liveness-probe",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/livenessProbe",
+          "value": {
+            "exec": {
+              "command": [
+                "true"
+              ]
+            }
+          }
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "container-lifecycle",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/lifecycle",
+          "value": {
+            "preStop": {
+              "exec": {
+                "command": [
+                  "true"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "container-working-dir",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/workingDir",
+          "value": "/"
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "container-stdin",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/stdin",
+          "value": true
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "container-volume-devices",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/volumeDevices",
+          "value": [
+            {
+              "devicePath": "/dev/x",
+              "name": "x"
+            }
+          ]
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "container-pull-policy-always",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/imagePullPolicy",
+          "value": "Always"
+        }
+      ],
+      "rule": "container-fields"
+    },
+    {
+      "id": "command-replaced",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/command",
+          "value": [
+            "/bin/sleep",
+            "infinity"
+          ]
+        }
+      ],
+      "rule": "command"
+    },
+    {
+      "id": "command-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/command"
+        }
+      ],
+      "rule": "command"
+    },
+    {
+      "id": "command-extra-argument",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/command/-",
+          "value": "--debug"
+        }
+      ],
+      "rule": "command"
+    },
+    {
+      "id": "security-context-privileged",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/privileged",
+          "value": true
+        }
+      ],
+      "rule": "privileged"
+    },
+    {
+      "id": "security-context-capability-added",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/capabilities",
+          "value": {
+            "add": [
+              "SYS_ADMIN"
+            ]
+          }
+        }
+      ],
+      "rule": "capabilities"
+    },
+    {
+      "id": "security-context-capabilities-drop-all",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/capabilities",
+          "value": {
+            "drop": [
+              "ALL"
+            ]
+          }
+        }
+      ],
+      "rule": "capabilities"
+    },
+    {
+      "id": "security-context-run-as-user",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/runAsUser",
+          "value": 0
+        }
+      ],
+      "rule": "run-as"
+    },
+    {
+      "id": "security-context-run-as-group",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/runAsGroup",
+          "value": 0
+        }
+      ],
+      "rule": "run-as"
+    },
+    {
+      "id": "security-context-run-as-non-root",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/runAsNonRoot",
+          "value": true
+        }
+      ],
+      "rule": "run-as"
+    },
+    {
+      "id": "pod-security-context-run-as-user",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/securityContext",
+          "value": {
+            "runAsUser": 0
+          }
+        }
+      ],
+      "rule": "run-as"
+    },
+    {
+      "id": "seccomp-runtime-default",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/seccompProfile",
+          "value": {
+            "type": "RuntimeDefault"
+          }
+        }
+      ],
+      "rule": "seccomp"
+    },
+    {
+      "id": "pod-seccomp-unconfined",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/securityContext",
+          "value": {
+            "seccompProfile": {
+              "type": "Unconfined"
+            }
+          }
+        }
+      ],
+      "rule": "seccomp"
+    },
+    {
+      "id": "proc-mount-default",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/securityContext/procMount",
+          "value": "Default"
+        }
+      ],
+      "rule": "proc-mount"
+    },
+    {
+      "id": "proc-mount-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/securityContext/procMount"
+        }
+      ],
+      "rule": "proc-mount"
+    },
+    {
+      "id": "security-context-read-only-root",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/readOnlyRootFilesystem",
+          "value": true
+        }
+      ],
+      "rule": "security-context-keys"
+    },
+    {
+      "id": "security-context-allow-privilege-escalation",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/allowPrivilegeEscalation",
+          "value": false
+        }
+      ],
+      "rule": "security-context-keys"
+    },
+    {
+      "id": "security-context-se-linux",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/seLinuxOptions",
+          "value": {
+            "level": "s0"
+          }
+        }
+      ],
+      "rule": "security-context-keys"
+    },
+    {
+      "id": "security-context-app-armor-default",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/spec/containers/0/securityContext/appArmorProfile/type",
+          "value": "RuntimeDefault"
+        }
+      ],
+      "rule": "security-context-keys"
+    },
+    {
+      "id": "security-context-app-armor-localhost",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/containers/0/securityContext/appArmorProfile/localhostProfile",
+          "value": "x"
+        }
+      ],
+      "rule": "security-context-keys"
+    },
+    {
+      "id": "security-context-removed",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/spec/containers/0/securityContext"
+        }
+      ],
+      "rule": "security-context-keys"
+    },
+    {
+      "id": "pod-security-context-fs-group",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/securityContext",
+          "value": {
+            "fsGroup": 10001
+          }
+        }
+      ],
+      "rule": "security-context-keys"
+    },
+    {
+      "id": "pod-name-not-a-worker-name",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/name",
+          "value": "evil"
+        }
+      ],
+      "rule": "pod-name"
+    },
+    {
+      "id": "pod-name-other-namespace",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/metadata/namespace",
+          "value": "factory"
+        }
+      ],
+      "rule": "pod-name"
+    },
+    {
+      "id": "pod-namespace-absent",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "remove",
+          "path": "/metadata/namespace"
+        }
+      ],
+      "rule": "pod-name"
+    },
+    {
+      "id": "metadata-finalizer",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/metadata/finalizers",
+          "value": [
+            "example.invalid/hold"
+          ]
+        }
+      ],
+      "rule": "pod-metadata"
+    },
+    {
+      "id": "metadata-generate-name",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/metadata/generateName",
+          "value": "factory-w-"
+        }
+      ],
+      "rule": "pod-metadata"
+    },
+    {
+      "id": "metadata-wrong-kind",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/kind",
+          "value": "Binding"
+        }
+      ],
+      "rule": "pod-metadata"
+    },
+    {
+      "id": "metadata-wrong-api-version",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "replace",
+          "path": "/apiVersion",
+          "value": "v2"
+        }
+      ],
+      "rule": "pod-metadata"
+    },
+    {
+      "id": "metadata-status-supplied",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/status",
+          "value": {
+            "phase": "Running"
+          }
+        }
+      ],
+      "rule": "pod-metadata"
+    },
+    {
+      "id": "spec-shareProcessNamespace",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/shareProcessNamespace",
+          "value": true
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-priorityClassName",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/priorityClassName",
+          "value": "system-node-critical"
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-schedulerName",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/schedulerName",
+          "value": "other-scheduler"
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-runtimeClassName",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/runtimeClassName",
+          "value": "other"
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-hostAliases",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/hostAliases",
+          "value": [
+            {
+              "hostnames": [
+                "x"
+              ],
+              "ip": "10.0.0.1"
+            }
+          ]
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-dnsPolicy",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/dnsPolicy",
+          "value": "Default"
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-dnsConfig",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/dnsConfig",
+          "value": {
+            "nameservers": [
+              "10.0.0.1"
+            ]
+          }
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-imagePullSecrets",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/imagePullSecrets",
+          "value": [
+            {
+              "name": "x"
+            }
+          ]
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-topologySpreadConstraints",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/topologySpreadConstraints",
+          "value": []
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-hostname",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/hostname",
+          "value": "x"
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-subdomain",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/subdomain",
+          "value": "x"
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-overhead",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/overhead",
+          "value": {
+            "cpu": "1"
+          }
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-readinessGates",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/readinessGates",
+          "value": [
+            {
+              "conditionType": "x"
+            }
+          ]
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-schedulingGates",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/schedulingGates",
+          "value": [
+            {
+              "name": "x"
+            }
+          ]
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-os",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/os",
+          "value": {
+            "name": "linux"
+          }
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-setHostnameAsFQDN",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/setHostnameAsFQDN",
+          "value": true
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-preemptionPolicy",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/preemptionPolicy",
+          "value": "Never"
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-priority",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/priority",
+          "value": 1000000
+        }
+      ],
+      "rule": "spec-fields"
+    },
+    {
+      "id": "spec-resourceClaims",
+      "must_deny": true,
+      "patch": [
+        {
+          "op": "add",
+          "path": "/spec/resourceClaims",
+          "value": [
+            {
+              "name": "x"
+            }
+          ]
+        }
+      ],
+      "rule": "spec-fields"
+    }
+  ]
+}

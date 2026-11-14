@@ -1,0 +1,37 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": true,
+    "enableWeakerNestedSandbox": false,
+    "enableWeakerNetworkIsolation": false,
+    "credentials": {
+      "envVars": [
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "mode": "deny"
+        }
+      ]
+    },
+    "network": {
+      "strictAllowlist": true,
+      "allowAllUnixSockets": false
+    }
+  },
+  "permissions": {
+    "deny": [
+      "Edit(.claude/**)",
+      "Edit(.mcp.json)",
+      "Edit(.git)",
+      "Edit(.git/**)",
+      "Read(//proc/**)",
+      "WebFetch",
+      "WebSearch",
+      "Task"
+    ],
+    "disableBypassPermissionsMode": "disable",
+    "disableAutoMode": "disable"
+  },
+  "disableAllHooks": true
+}

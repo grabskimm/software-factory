@@ -1,0 +1,165 @@
+name: CI
+
+# Runs on every pull request to main, on every push to main and on demand (workflow_dispatch).
+# No secrets, no cloud access, no GitHub App: every check here can be run by anyone, on a fork too.
+#
+# What runs
+#   * compile: byte-compile every Python file and check that the JSON files that ship parse.
+#   * unit tests: the stdlib-only package and its tests, on each supported Python version.
+#   * token broker: tools/token_broker.py and the GitHub auth tests in their own virtualenv (the
+#     only code with a dependency, `cryptography`); a skipped test fails the job.
+#   * infra checks: the offline reference checks of the optional Terraform deployment (infra/test),
+#     which need no Terraform binary, no provider and no Azure access.
+#   * `CI result` (if: always(), needs: every other job) is the ONE check to require
+#     (docs/handoff.md, step 4, the `<<REPO_CI_CHECK>>` value for handoff/ruleset.json): its name
+#     does not change with a matrix, and it is red when any needed job failed, was cancelled or
+#     was skipped. Add a new job to its `needs:` (tests/test_ci_workflow.py fails if you do not).
+#
+# Every job runs on every change: there is no path filter, because a workflow that does not start
+# leaves its checks "expected" forever wherever they are required. Event values reach scripts
+# through env: and are quoted, never interpolated into a script. Every action is pinned to a commit.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # a newer push to a pull request cancels the older run; a run on main always finishes
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  compile:
+    name: compile (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: Check out
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Byte-compile
+        run: python -m compileall -q src tests tools spikes
+      - name: Validate JSON files
+        run: |
+          python -m json.tool managed-settings.json > /dev/null
+          python -m json.tool handoff/ruleset.json > /dev/null
+
+  unit-tests:
+    name: unit tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - name: Check out
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ matrix.python }}
+      # pyproject.toml needs setuptools 77 or newer (SPDX license); tests/test_webui.py builds the package
+      # with the setuptools of this interpreter and fails, not skips, when that one is older.
+      - name: Install a recent setuptools
+        run: python -m pip install --upgrade "setuptools>=77"
+      - name: Install package
+        run: pip install -e .
+      - name: Show tool versions
+        run: |
+          python --version
+          git --version
+      # Runs from the repository root whatever the checkout directory is called.
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+  token-broker:
+    name: token broker (own venv)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      # `cryptography` lives only in the broker's environment; the factory
+      # package itself stays stdlib-only.
+      - name: Create the broker environment
+        run: |
+          python -m venv "$RUNNER_TEMP/broker"
+          "$RUNNER_TEMP/broker/bin/pip" install -r tools/requirements-token-broker.txt
+          "$RUNNER_TEMP/broker/bin/pip" install -e .
+      - name: Run broker and auth tests (none may be skipped)
+        run: |
+          "$RUNNER_TEMP/broker/bin/python" -m unittest tests.test_token_broker tests.test_github_auth -v 2>&1 | tee "$RUNNER_TEMP/broker.log"
+          if grep -q "skipped" "$RUNNER_TEMP/broker.log"; then
+            echo "::error::token broker tests were skipped"
+            exit 1
+          fi
+
+  # The Terraform of infra/ is an optional reference deployment. Its offline checks are plain Python
+  # (standard library only): the reference checker and the design tests that read the .tf files.
+  infra-checks:
+    name: infra offline checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - name: Offline reference checks
+        run: |
+          set -euo pipefail
+          python3 -I infra/test/check_refs.py
+          python3 -I -m unittest discover -s infra/test
+
+  # The one check to require (docs/handoff.md, step 4). It runs whatever happened to the others and is
+  # green only when every needed job succeeded. The results reach the script through env: only.
+  ci-result:
+    name: CI result
+    if: always()
+    needs: [compile, unit-tests, token-broker, infra-checks]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEEDS_RESULTS: ${{ join(needs.*.result, ' ') }}
+    steps:
+      - name: Every needed job must have succeeded
+        run: |
+          set -eu
+          echo "results of the needed jobs: $NEEDS_RESULTS"
+          for result in $NEEDS_RESULTS; do
+            if [ "$result" != success ]; then
+              echo "::error::a needed job ended as $result"
+              exit 1
+            fi
+          done

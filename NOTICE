@@ -1,0 +1,19 @@
+Software Factory
+Copyright 2026 grabskimm
+
+This product includes third-party software:
+
+* @azure/msal-browser 5.25.1 (src/factory/ui/vendor/msal-browser.min.js)
+  Copyright (c) Microsoft Corporation. Licensed under the MIT License;
+  see src/factory/ui/vendor/msal-browser.LICENSE.
+
+The optional container image (Dockerfile) downloads the following from their
+upstream sources when the image is built. They are not part of this repository
+or of its Python package, and this project does not redistribute them:
+
+* Terraform, by HashiCorp, under the Business Source License 1.1.
+* The Claude Code CLI (@anthropic-ai/claude-code), by Anthropic, which is
+  proprietary software under Anthropic's terms.
+
+Anyone who builds or publishes such an image is responsible for complying with
+the licenses of these and of the other tools the image installs.

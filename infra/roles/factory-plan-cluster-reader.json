@@ -1,0 +1,20 @@
+{
+  "Name": "Factory Plan Cluster Reader",
+  "IsCustom": true,
+  "Description": "Read-only cluster-scoped and namespaced Kubernetes reads (CRDs, storage classes, custom resources, cluster roles and bindings, roles and role bindings) that the Factory plan identity needs and Azure Kubernetes Service RBAC Reader does not grant.",
+  "Actions": [],
+  "NotActions": [],
+  "DataActions": [
+    "Microsoft.ContainerService/managedClusters/apiextensions.k8s.io/customresourcedefinitions/read",
+    "Microsoft.ContainerService/managedClusters/storage.k8s.io/storageclasses/read",
+    "Microsoft.ContainerService/managedClusters/customresources/read",
+    "Microsoft.ContainerService/managedClusters/rbac.authorization.k8s.io/clusterroles/read",
+    "Microsoft.ContainerService/managedClusters/rbac.authorization.k8s.io/clusterrolebindings/read",
+    "Microsoft.ContainerService/managedClusters/rbac.authorization.k8s.io/roles/read",
+    "Microsoft.ContainerService/managedClusters/rbac.authorization.k8s.io/rolebindings/read"
+  ],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/<<SUBSCRIPTION_ID>>/resourceGroups/<<RESOURCE_GROUP>>"
+  ]
+}

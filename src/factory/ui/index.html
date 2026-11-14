@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="color-scheme" content="light dark">
+<title>Factory dashboard</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css?v=__VERSION_STYLE__">
+<script src="vendor/msal-browser.min.js?v=__VERSION_MSAL__" defer></script>
+<script src="app.js?v=__VERSION_APP__" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <h1 class="brand"><span class="brand-mark" aria-hidden="true"></span>Factory</h1>
+  <nav class="tabs" aria-label="Views">
+    <a id="nav-active" class="tab" href="#/active">Active</a>
+    <a id="nav-history" class="tab" href="#/history">History</a>
+  </nav>
+  <p id="freshness" class="freshness" role="status" aria-live="polite"></p>
+</header>
+<section id="auth" class="auth" aria-label="Sign-in"></section>
+<main id="main" tabindex="-1">
+  <div class="state loading" role="status" aria-busy="true"><p class="state-title">Loading</p><p class="state-text">Loading the dashboard...</p></div>
+  <noscript><p class="notice error">This page needs JavaScript. It loads no third-party script.</p></noscript>
+</main>
+<footer class="foot">
+  <p>Factory never merges and never closes issues. Everything on this page is read from the manager and shown as plain text.</p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,81 @@
+# Prometheus configuration, rendered by Terraform (infra/monitoring.tf). Nothing here is a secret:
+# the metrics bearer token is read from a file that the Key Vault CSI volume provides.
+global:
+  scrape_interval: ${scrape_interval}
+  scrape_timeout: 10s
+  evaluation_interval: ${scrape_interval}
+
+# JSON is valid YAML: the rule file is the plain JSON of infra/monitoring/alert-rules.json.
+rule_files:
+  - /etc/prometheus-rules/*.json
+%{ if alerting ~}
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["${alertmanager_target}"]
+%{ endif ~}
+
+scrape_configs:
+  # The Factory manager's metrics listener (docs/metrics.md): a ClusterIP Service that the ingress
+  # does not expose, with the shared bearer token.
+  - job_name: factory-manager
+    metrics_path: /metrics
+    scheme: http
+    authorization:
+      type: Bearer
+      credentials_file: /mnt/secrets/${token_file}
+    static_configs:
+      - targets: ["${manager_target}"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Container CPU and memory against their limits, from the kubelet of every node. Only the series
+  # the alerts and dashboards use are kept, for the three namespaces of this deployment.
+  - job_name: kubelet-cadvisor
+    scheme: https
+    metrics_path: /metrics/cadvisor
+    authorization:
+      type: Bearer
+      credentials_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    # The kubelet's serving certificate is not verified (README.md, UNVERIFIED): the token that is sent
+    # can only read node metrics.
+    tls_config:
+      insecure_skip_verify: true
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_node_address_InternalIP]
+        regex: (.+)
+        target_label: __address__
+        replacement: $1:10250
+      - source_labels: [__meta_kubernetes_node_name]
+        target_label: node
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: container_(cpu_usage_seconds_total|memory_working_set_bytes|spec_memory_limit_bytes|spec_cpu_quota|spec_cpu_period|oom_events_total|start_time_seconds)
+        action: keep
+      - source_labels: [namespace]
+        regex: ${kept_namespaces}
+        action: keep
+      - source_labels: [container]
+        regex: .+
+        action: keep
+
+  # Pods, nodes and NodeClaims as the API server reports them (issue 149; docs/metrics.md, "NAP-side series"): one small
+  # kube-state-metrics pod in this namespace, reached over its ClusterIP Service. No token: it is the same cluster-internal
+  # trust level as the Prometheus port itself (docs/metrics.md, "Network isolation"). Prometheus needs no RBAC for a static target.
+  # Only the series that the rules and the dashboards use are kept, and the pod series only for the worker namespace: the pod
+  # name of a worker pod is a per-object label, so every pod of another namespace would add churn for nothing. The node series
+  # and the NodeClaim series have no namespace label (the empty text after the semicolon). Keep this list equal to the
+  # kube_ names of alert-rules.json and the dashboards (infra/test/test_monitoring_design.py).
+  - job_name: kube-state-metrics
+    honor_labels: true
+    static_configs:
+      - targets: ["${ksm_target}"]
+    metric_relabel_configs:
+      - source_labels: [__name__, namespace]
+        regex: kube_pod_(created|status_phase|status_unschedulable|status_ready|status_ready_time|status_reason);${worker_namespace}|kube_node_labels;|kube_customresource_nodeclaim_(created_timestamp_seconds|condition_last_transition_timestamp_seconds);
+        action: keep

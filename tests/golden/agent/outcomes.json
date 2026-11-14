@@ -1,0 +1,872 @@
+{
+  "budget-exhausted": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent failed (subtype=error_max_budget_usd, is_error=true); see <root>/run/0-build-0.jsonl and <root>/run/0-build-0.stderr",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "error_max_budget_usd",
+          "total_cost_usd": 8.2,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "fenced-text-result": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "returned": {
+        "result": {
+          "pass": false
+        },
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "invalid-budget": {
+    "chown": [],
+    "events": [],
+    "outcome": {
+      "raised": {
+        "message": "budget must be a positive number of dollars",
+        "type": "ValueError",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": null
+  },
+  "invalid-domain": {
+    "chown": [],
+    "events": [],
+    "outcome": {
+      "raised": {
+        "message": "invalid sandbox domain: 'exa mple.com'",
+        "type": "ValueError",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": null
+  },
+  "is-error-with-a-success-subtype": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent failed (subtype=success, is_error=true, terminal_reason=api_error, api_error_status=429); see <root>/run/0-build-0.jsonl and <root>/run/0-build-0.stderr",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "last-result-wins-and-garbage-is-skipped": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "returned": {
+        "result": {
+          "v": "last"
+        },
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "memory-guard-footprint": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "returned": {
+        "result": {
+          "ok": true
+        },
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "memory-guard-unavailable": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL"
+    ],
+    "outcome": {
+      "returned": {
+        "result": {
+          "ok": true
+        },
+        "usage": {
+          "duration_ms": 25,
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "memory-limit-exceeded": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "worker exceeded its memory limit: peak 500 MiB over 100 MiB; see <root>/run/0-build-0.stderr",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 0,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {},
+          "num_turns": 0,
+          "phase": "build",
+          "subtype": "memory_limit",
+          "total_cost_usd": 0,
+          "usage": {}
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "memory-limit-exceeded-with-a-result": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "worker exceeded its memory limit: peak 500 MiB over 100 MiB; see <root>/run/0-build-0.stderr",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "error_max_turns",
+          "total_cost_usd": 3.5,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "no-result-and-a-clean-exit": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent produced no result event; see <root>/run/0-build-0.jsonl",
+        "type": "RuntimeError",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "no-result-and-a-nonzero-exit": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent exited 3; see <root>/run/0-build-0.stderr",
+        "type": "RuntimeError",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "non-success-subtype": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent failed (subtype=error_max_turns); see <root>/run/0-build-0.jsonl and <root>/run/0-build-0.stderr",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "error_max_turns",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "nonzero-exit-after-a-success-result": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent exited 2 after a success result; see <root>/run/0-build-0.stderr",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "result-that-is-not-json": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent result is not valid JSON; see <root>/run/0-build-0.jsonl",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "result-without-structured-output": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent result has no structured output; see <root>/run/0-build-0.jsonl",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "snake-case-model-usage": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "returned": {
+        "result": {
+          "ok": true
+        },
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "other": {}
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "structured-output": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "returned": {
+        "result": {
+          "ok": true
+        },
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "unclosed-fence": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent result is not valid JSON; see <root>/run/0-build-0.jsonl",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "unknown-phase": {
+    "chown": [],
+    "events": [],
+    "outcome": {
+      "raised": {
+        "message": "unknown agent phase: 'deploy'",
+        "type": "ValueError",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": null
+  },
+  "unsafe-terminal-reason-is-not-copied": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "agent failed (subtype=success, is_error=true); see <root>/run/0-build-0.jsonl and <root>/run/0-build-0.stderr",
+        "type": "AgentError",
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "worker-identity-required": {
+    "chown": [],
+    "events": [],
+    "outcome": {
+      "raised": {
+        "message": "this deployment requires a separate worker identity: set [worker] uid and gid in the repository config (the image defines uid 10002, gid 10010)",
+        "type": "AgentError",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": null
+  }
+}

@@ -1,0 +1,389 @@
+{
+  "groups": [
+    {
+      "name": "factory-availability",
+      "rules": [
+        {
+          "alert": "FactoryManagerNotScraped",
+          "expr": "(up{job=\"factory-manager\"} == 0) or absent(up{job=\"factory-manager\"})",
+          "for": "15m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Prometheus cannot scrape the Factory manager.",
+            "runbook": "Check the pod (kubectl -n factory get pods; logs). A rollout or drain takes up to the termination grace period, so 15 minutes of silence is not a normal rollout. A 401 from the metrics port also makes the target down: the Key Vault secret version of the metrics token must be the same for the manager and for Prometheus (infra/README.md, Monitoring)."
+          }
+        },
+        {
+          "alert": "FactoryCadvisorNotScraped",
+          "expr": "up{job=\"kubelet-cadvisor\"} == 0",
+          "for": "30m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The kubelet container metrics are not scraped, so the memory, restart and out-of-memory alerts have no data.",
+            "runbook": "Check the Prometheus targets page (kubectl -n monitoring port-forward svc/prometheus 9090) for the kubelet-cadvisor error. The usual causes are the ClusterRole of the prometheus service account and the node firewall rule for TCP 10250 (infra/README.md, UNVERIFIED)."
+          }
+        },
+        {
+          "alert": "FactoryMetricsScrapeErrors",
+          "expr": "increase(factory_metrics_scrape_errors_total[30m]) > 0",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "A collector inside the Factory manager failed during a scrape (the scrape still answers).",
+            "runbook": "The series of the failing source are missing or stale. Read the manager's stdout for the error type and compare docs/metrics.md, column Source, to see which numbers are affected."
+          }
+        },
+        {
+          "alert": "FactoryTriggerPausedTooLong",
+          "expr": "factory_trigger_paused == 1",
+          "for": "2h",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The label watcher has been paused for two hours.",
+            "runbook": "A deploy pauses the watcher and resumes it afterwards; a pause that outlasts a deploy means the resume step did not run. Check that no deploy is running, then resume it through the manager API (docs/manager.md, POST /trigger-pause)."
+          }
+        },
+        {
+          "alert": "FactoryWatcherBackoff",
+          "expr": "factory_watcher_backoff_seconds > 0",
+          "for": "30m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The label watcher is backing off for {{ $labels.repo }} after failed passes.",
+            "runbook": "The watcher failed on this repository (a GitHub error, a missing App permission or a configuration error) and waits before trying again. Check factory_github_app_state for the repository and the manager log, fix the cause; the backoff clears itself."
+          }
+        },
+        {
+          "alert": "FactoryGitHubAppUnhealthy",
+          "expr": "factory_github_app_state{state=~\"permission_missing|unavailable|other\"} == 1",
+          "for": "15m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The GitHub App check for {{ $labels.repo }} is {{ $labels.state }}.",
+            "runbook": "permission_missing is the missing App permission case (the 422 on label or pull request writes): check the App's permissions and the installation for the repository. unavailable means GitHub or the token mint failed: see docs/operations.md, Quick troubleshooting."
+          }
+        },
+        {
+          "alert": "FactoryManagerServerErrors",
+          "expr": "sum(rate(factory_manager_requests_total{status_class=\"5xx\"}[10m])) > 0.02",
+          "for": "15m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The Factory manager API is answering 5xx.",
+            "runbook": "Look at the manager log around the failing route (factory_manager_requests_total by route and status_class) and at the pod's memory and restarts (Factory resources dashboard)."
+          }
+        },
+        {
+          "alert": "FactoryAuthFailuresHigh",
+          "expr": "sum(rate(factory_manager_auth_failures_total[10m])) > 1",
+          "for": "15m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The manager API is refusing more than one request per second (401 or 403).",
+            "runbook": "Either a client lost its Entra token or role, or something is guessing at the public URL. Compare the 401 and 403 rates (Factory resources dashboard) and the audit lines in the manager log; the API stays closed either way."
+          }
+        },
+        {
+          "alert": "FactoryJwksRefreshFailing",
+          "expr": "increase(factory_manager_jwks_refresh_failures_total[1h]) > 3",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The manager could not refresh the Entra signing keys several times in an hour.",
+            "runbook": "Tokens signed with a rotated key will be refused once the cached keys expire. Check the node's egress to login.microsoftonline.com (NAT gateway, NSG rule for 443) and Entra's status."
+          }
+        }
+      ]
+    },
+    {
+      "name": "factory-work",
+      "rules": [
+        {
+          "alert": "FactoryRunBudgetBurn",
+          "expr": "factory_run_spent_usd_max / factory_run_budget_usd > 0.9",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "A run of {{ $labels.repo }} has spent more than 90 percent of run_budget_usd.",
+            "runbook": "The cost guardrail drains the run when it reaches the budget. Decide whether the run is worth more (raise run_budget_usd in the repository config and roll out) or stop it (docs/operations.md, Cost guardrails)."
+          }
+        },
+        {
+          "alert": "FactoryBudgetDrained",
+          "expr": "increase(factory_budget_drains_total[1h]) > 0",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The cost guardrail drained a run of {{ $labels.repo }} because it reached run_budget_usd.",
+            "runbook": "A drained run is not resumed automatically. Read docs/operations.md, Cost guardrails, then retry the jobs you still want or raise the budget."
+          }
+        },
+        {
+          "alert": "FactoryPlansFailing",
+          "expr": "sum by (repo) (increase(factory_plan_failures_total[1h])) >= 3",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Planning for {{ $labels.repo }} failed three or more times in the last hour.",
+            "runbook": "Each failure is a plan failed line in the manager's stdout with a closed code (docs/metrics.md, plan_failure_code, and src/factory/plan_failure.py). The label watcher backs off and holds a set that fails twice with the same code; read the run's plan log, fix the cause (the issue's paths, the planner session or the GitHub snapshot) and edit or relabel the issue."
+          }
+        },
+        {
+          "alert": "FactoryJobsInterrupted",
+          "expr": "sum by (repo) (factory_jobs{status=\"interrupted\"}) > 0",
+          "for": "1h",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Jobs of {{ $labels.repo }} have been interrupted for an hour.",
+            "runbook": "Interrupted jobs are resumed by the operations loop after a restart or deploy; an hour means the loop cannot (a lost repository lock, a drained run or a paused watcher). Retry or resume them (docs/operations.md, Recovery after a restart or a redeploy)."
+          }
+        },
+        {
+          "alert": "FactoryJobsWaitingForHuman",
+          "expr": "sum by (repo) (factory_jobs{status=~\"needs_human_publish|blocked\"}) > 0",
+          "for": "4h",
+          "labels": {
+            "severity": "info"
+          },
+          "annotations": {
+            "summary": "Jobs of {{ $labels.repo }} have waited for a person for four hours.",
+            "runbook": "A job that needs a human publish or is blocked stays until someone acts: read its blocker in the dashboard or the pull request and resume, retry or purge it. A pr_ready job whose pull request merged is not counted here: reconcile never rewrites state.json, so it reads pr_ready until its run is purged (docs/metrics.md)."
+          }
+        },
+        {
+          "alert": "FactoryWorkersWaiting",
+          "expr": "factory_capacity_workers{part=\"waiting\"} > 0",
+          "for": "2h",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Sessions have waited for a worker slot for two hours.",
+            "runbook": "The global worker budget is full or the memory guard is holding slots back (docs/capacity.md, The memory guard). Check factory_phase_p95_rss_mib against the pod's memory and lower the number of concurrent sessions or size the pod up."
+          }
+        },
+        {
+          "alert": "FactoryHistoryNearCap",
+          "expr": "factory_history_bytes > 0.8 * 67108864",
+          "for": "1h",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The history ledger is above 80 percent of its default 64 MiB cap.",
+            "runbook": "At the cap the oldest segments are dropped and the ledger totals cover only the newest part. Raise FACTORY_HISTORY_MAX_BYTES (and change this threshold with it) or shorten FACTORY_HISTORY_RETENTION_DAYS (docs/manager.md)."
+          }
+        },
+        {
+          "alert": "FactoryHistoryGrowingFast",
+          "expr": "predict_linear(factory_history_bytes[1d], 7 * 86400) > 67108864",
+          "for": "6h",
+          "labels": {
+            "severity": "info"
+          },
+          "annotations": {
+            "summary": "At its current growth the history ledger reaches its default 64 MiB cap within a week.",
+            "runbook": "Plan the cap or the retention before the ledger starts dropping old segments (docs/manager.md, History ledger)."
+          }
+        },
+        {
+          "alert": "FactoryHistoryTruncated",
+          "expr": "factory_history_truncated == 1",
+          "for": "1h",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The last read of the history ledger left older events unread.",
+            "runbook": "Ledger totals (cost, outcomes, lead time) cover only the newest part, so do not trust a rate over a long span until the ledger fits the read bound again (docs/metrics.md, How ledger counters stay honest)."
+          }
+        },
+        {
+          "alert": "FactoryDataDiskLow",
+          "expr": "factory_data_disk_bytes{part=\"free\"} / factory_data_disk_bytes{part=\"total\"} < 0.15",
+          "for": "15m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "The /data volume has less than 15 percent free.",
+            "runbook": "A full /data stops runs. Purge finished runs (docs/operations.md, Purge) or grow the disk (data_disk_size_gib; the storage class allows expansion)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "factory-resources",
+      "rules": [
+        {
+          "alert": "FactoryPodMemoryNearLimit",
+          "expr": "max(container_memory_working_set_bytes{namespace=\"factory\",container=\"factory\"}) / max(container_spec_memory_limit_bytes{namespace=\"factory\",container=\"factory\"}) > 0.9",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "The Factory pod uses more than 90 percent of its memory limit.",
+            "runbook": "The memory guard holds new sessions back near the limit and the kernel kills the pod beyond it. Compare factory_phase_p95_rss_mib per session, lower the concurrency or raise container_memory (docs/capacity.md, Sizing the pod)."
+          }
+        },
+        {
+          "alert": "FactoryPodOOMKilled",
+          "expr": "increase(container_oom_events_total{namespace=\"factory\",container=\"factory\"}[30m]) > 0",
+          "for": "0m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "A process of the Factory pod was killed for lack of memory.",
+            "runbook": "Running sessions may have been lost; the operations loop resumes interrupted jobs. Find the heaviest phase (factory_phase_peak_rss_mib) and size the pod or the concurrency accordingly (docs/capacity.md)."
+          }
+        },
+        {
+          "alert": "FactoryPodRestarted",
+          "expr": "changes(container_start_time_seconds{namespace=\"factory\",container=\"factory\"}[30m]) > 0",
+          "for": "0m",
+          "labels": {
+            "severity": "info"
+          },
+          "annotations": {
+            "summary": "The Factory container started again.",
+            "runbook": "Expected after a deploy; otherwise look at the previous container's exit (kubectl -n factory describe pod) and at the out-of-memory alert. Running jobs come back as interrupted and are resumed."
+          }
+        }
+      ]
+    },
+    {
+      "name": "factory-nap-recording",
+      "rules": [
+        {
+          "record": "factory:worker_pod_time_to_ready_seconds",
+          "expr": "(kube_pod_status_ready_time{namespace=\"factory-workers\"} - on (namespace, pod, uid) kube_pod_created{namespace=\"factory-workers\"}) * on (namespace, pod, uid) (kube_pod_status_ready{namespace=\"factory-workers\",condition=\"true\"} == 1)"
+        },
+        {
+          "record": "factory:worker_pods_pending",
+          "expr": "sum(kube_pod_status_phase{namespace=\"factory-workers\",phase=\"Pending\"}) or vector(0)"
+        },
+        {
+          "record": "factory:worker_pods_unschedulable",
+          "expr": "sum(kube_pod_status_unschedulable{namespace=\"factory-workers\"}) or vector(0)"
+        },
+        {
+          "record": "factory:nap_nodes",
+          "expr": "count by (nodepool) (label_replace(kube_node_labels{label_karpenter_sh_nodepool!=\"\"}, \"nodepool\", \"$1\", \"label_karpenter_sh_nodepool\", \"(.+)\"))"
+        },
+        {
+          "record": "factory:nap_nodes_total",
+          "expr": "count(kube_node_labels{label_karpenter_sh_nodepool!=\"\"}) or vector(0)"
+        },
+        {
+          "record": "factory:nodeclaim_condition_seconds",
+          "expr": "max by (nodepool, type) (kube_customresource_nodeclaim_condition_last_transition_timestamp_seconds{type=~\"Launched|Registered|Initialized\",status=\"True\"} - on (name) group_left () kube_customresource_nodeclaim_created_timestamp_seconds)"
+        }
+      ]
+    },
+    {
+      "name": "factory-nap",
+      "rules": [
+        {
+          "alert": "FactoryKubeStateMetricsNotScraped",
+          "expr": "(up{job=\"kube-state-metrics\"} == 0) or absent(up{job=\"kube-state-metrics\"})",
+          "for": "30m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Prometheus cannot scrape kube-state-metrics, so the pending-pod, node-count, time-to-node and NodeClaim series and their alerts have no data.",
+            "runbook": "Check the pod (kubectl -n monitoring get pods -l app.kubernetes.io/name=kube-state-metrics; logs). With monitoring_nodeclaim_metrics_enabled the usual causes are the NodeClaim API version in the custom resource state file and the ClusterRole for nodeclaims and customresourcedefinitions (infra/README.md, Monitoring, UNVERIFIED); an image that cannot start under the restricted settings is the other."
+          }
+        },
+        {
+          "alert": "FactoryWorkerPodPendingTooLong",
+          "expr": "count((time() - kube_pod_created{namespace=\"factory-workers\"} > 600) and on (namespace, pod, uid) (kube_pod_status_phase{namespace=\"factory-workers\",phase=\"Pending\"} == 1)) > 0",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "A worker pod has been Pending for more than 10 minutes (a cold start measured 94 to 101 seconds).",
+            "runbook": "Look at the pod (kubectl -n factory-workers describe pod): no node yet means node auto-provisioning is slow, blocked by the NodePool limits (limits.cpu) or by quota, and a taint or selector that no node satisfies shows as Unschedulable. Compare the NodeClaim alerts and the dashboard Node auto-provisioning (docs/metrics.md, NAP-side series)."
+          }
+        },
+        {
+          "alert": "FactoryWorkerPodSlowToReady",
+          "expr": "max(factory:worker_pod_time_to_ready_seconds and on (namespace, pod, uid) ((time() - kube_pod_status_ready_time{namespace=\"factory-workers\"}) < 3600)) > 300",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "A worker pod needed more than 5 minutes from creation to Ready in the last hour (a cold start measured 94 to 101 seconds).",
+            "runbook": "Compare the steps of the NodeClaim on the dashboard Node auto-provisioning (Launched, Registered, Initialized against creation) with the pod's own events (kubectl -n factory-workers describe pod): a slow Registered is the node's boot, a slow Ready after Initialized is the image pull or the startup taints. The time is the last Ready transition, so a pod whose readiness flapped shows a time that is too short."
+          }
+        },
+        {
+          "alert": "FactoryNodeClaimNotInitialized",
+          "expr": "count((time() - kube_customresource_nodeclaim_created_timestamp_seconds > 900) unless on (name) kube_customresource_nodeclaim_condition_last_transition_timestamp_seconds{type=\"Initialized\",status=\"True\"}) > 0",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "A NodeClaim is older than 15 minutes and is not Initialized.",
+            "runbook": "Read the claim (kubectl get nodeclaims; kubectl describe nodeclaim <name>): Launched false means the VM could not be created (quota, size or zone not available), Registered false means the node never joined. Needs monitoring_nodeclaim_metrics_enabled; the series are absent without it, and then this alert cannot fire."
+          }
+        },
+        {
+          "alert": "FactoryNapNodesIdle",
+          "expr": "factory:nap_nodes_total > 0 and on () ((sum(kube_pod_status_phase{namespace=\"factory-workers\",phase=\"Running\"}) or vector(0)) == 0)",
+          "for": "30m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Node auto-provisioning has had a node for 30 minutes while no worker pod runs, which is a node cost nobody uses.",
+            "runbook": "Consolidation is held back: a pod with karpenter.sh/do-not-disrupt that is no longer a worker, a PodDisruptionBudget, or a NodePool disruption budget (kubectl get nodes -l karpenter.sh/nodepool; kubectl describe node for the DisruptionBlocked event). The node should go consolidateAfter plus about two minutes after its last pod."
+          }
+        },
+        {
+          "alert": "FactoryWorkerPodEvicted",
+          "expr": "sum(kube_pod_status_reason{namespace=\"factory-workers\",reason=\"Evicted\"}) > 0",
+          "for": "0m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "A worker pod ended Evicted by the kubelet (node pressure).",
+            "runbook": "Read the pod's message (kubectl -n factory-workers describe pod): memory or disk pressure on the node. Limit: this series does not show a pod that node auto-provisioning drained, because that pod is deleted and not left Evicted; those evictions and the DisruptionBlocked events are not available from kube-state-metrics (docs/metrics.md, NAP-side series)."
+          }
+        }
+      ]
+    }
+  ]
+}

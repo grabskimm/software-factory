@@ -1,0 +1,101 @@
+; Grafana configuration, rendered by Terraform (infra/monitoring.tf). Grafana is served below /grafana/ of
+; the API host (Caddy, ingress.tf) and signs people in with Microsoft Entra ID; nobody is anonymous.
+; The OIDC client secret is not here: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET__FILE points at the Key Vault file.
+
+[server]
+protocol = http
+http_addr = 0.0.0.0
+http_port = ${port}
+domain = ${domain}
+root_url = https://${domain}/grafana/
+serve_from_sub_path = true
+
+[security]
+disable_initial_admin_creation = true
+cookie_secure = true
+cookie_samesite = lax
+disable_gravatar = true
+allow_embedding = false
+strict_transport_security = true
+strict_transport_security_max_age_seconds = 31536000
+x_content_type_options = true
+x_xss_protection = true
+content_security_policy = true
+
+[database]
+type = sqlite3
+path = grafana.db
+
+[log]
+mode = console
+level = info
+
+[auth]
+disable_login_form = true
+disable_signout_menu = false
+
+[auth.anonymous]
+enabled = false
+hide_version = true
+
+[auth.basic]
+enabled = false
+
+[auth.proxy]
+enabled = false
+
+[auth.jwt]
+enabled = false
+
+[users]
+allow_sign_up = false
+allow_org_create = false
+auto_assign_org = true
+auto_assign_org_role = Viewer
+viewers_can_edit = false
+
+[auth.generic_oauth]
+enabled = true
+name = Microsoft Entra ID
+allow_sign_up = true
+auto_login = true
+client_id = ${client_id}
+scopes = openid profile email
+auth_url = https://login.microsoftonline.com/${tenant_id}/oauth2/v2.0/authorize
+token_url = https://login.microsoftonline.com/${tenant_id}/oauth2/v2.0/token
+use_pkce = true
+login_attribute_path = preferred_username
+email_attribute_path = email || preferred_username
+name_attribute_path = name
+role_attribute_path = contains(roles[*] || `[]`, 'Factory.Operator') && '${operator_role}' || contains(roles[*] || `[]`, 'Factory.Viewer') && 'Viewer'
+role_attribute_strict = true
+allow_assign_grafana_admin = false
+skip_org_role_sync = false
+
+[dashboards]
+default_home_dashboard_path = /var/lib/grafana-dashboards/factory-overview.json
+min_refresh_interval = 30s
+
+[analytics]
+reporting_enabled = false
+check_for_updates = false
+check_for_plugin_updates = false
+feedback_links_enabled = false
+
+[news]
+news_feed_enabled = false
+
+[plugins]
+plugin_admin_enabled = false
+preinstall_disabled = true
+
+; Grafana's own Prometheus endpoint (/metrics, and so /grafana/metrics behind the Caddy route) answers without a sign-in
+; unless it is switched off, and nothing here scrapes Grafana.
+[metrics]
+enabled = false
+
+[snapshots]
+external_enabled = false
+
+[public_dashboards]
+enabled = false

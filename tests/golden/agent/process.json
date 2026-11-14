@@ -1,0 +1,210 @@
+{
+  "interrupt-during-the-wait": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGTERM",
+      "wait timeout=5",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "",
+        "type": "KeyboardInterrupt",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "normal-run": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "returned": {
+        "result": {
+          "ok": true
+        },
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "on-start-not-given": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "communicate timeout=1800",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "returned": {
+        "result": {
+          "ok": true
+        },
+        "usage": {
+          "duration_ms": 25,
+          "footprint": {
+            "cpu_seconds": 1.5,
+            "limit_mb": 2048,
+            "peak_rss_mb": 50.0,
+            "samples": 3
+          },
+          "model": "claude-sonnet-5-5",
+          "model_usage": {
+            "stub-model": {
+              "costUSD": 0.0125,
+              "inputTokens": 12,
+              "outputTokens": 5
+            }
+          },
+          "num_turns": 2,
+          "phase": "build",
+          "subtype": "success",
+          "total_cost_usd": 0.0125,
+          "usage": {
+            "input_tokens": 12,
+            "output_tokens": 5
+          }
+        }
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "on-start-raises": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "killpg 4242 SIGTERM",
+      "wait timeout=5",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "on_start failed",
+        "type": "RuntimeError",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "timeout": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=7",
+      "killpg 4242 SIGTERM",
+      "wait timeout=5",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "timed out after 7 s",
+        "type": "AgentTimeout",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  },
+  "timeout-of-a-worker-that-ignores-term": {
+    "chown": [],
+    "events": [
+      "popen",
+      "memwatch.start pid=4242 limit=2048",
+      "on_start 4242",
+      "communicate timeout=7",
+      "killpg 4242 SIGTERM",
+      "wait timeout=5",
+      "killpg 4242 SIGKILL",
+      "wait timeout=None",
+      "killpg 4242 SIGKILL",
+      "watch.stop"
+    ],
+    "outcome": {
+      "raised": {
+        "message": "timed out after 7 s",
+        "type": "AgentTimeout",
+        "usage": null
+      }
+    },
+    "run_directory_afterwards": [
+      "0-build-0.jsonl",
+      "0-build-0.prompt.txt",
+      "0-build-0.settings.json",
+      "0-build-0.stderr",
+      "0-build-0.system.md"
+    ]
+  }
+}

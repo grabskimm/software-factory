@@ -1,0 +1,188 @@
+{
+  "apiVersion": "v1",
+  "kind": "Pod",
+  "metadata": {
+    "annotations": {
+      "factory.internal/deadline": "1800000420",
+      "factory.internal/job-id": "build-1",
+      "factory.internal/repo": "Example-Org/example-repo",
+      "factory.internal/run-id": "run-20260101-0001",
+      "karpenter.sh/do-not-disrupt": "true"
+    },
+    "labels": {
+      "factory.internal/attempt": "1",
+      "factory.internal/job": "e844adc60c72",
+      "factory.internal/manager": "abcdef012345",
+      "factory.internal/phase": "preflight",
+      "factory.internal/repo": "99a40327a69b",
+      "factory.internal/role": "worker",
+      "factory.internal/run": "ba20f88be09a",
+      "factory.internal/session": "0123456789abcdef0123456789abcdef"
+    },
+    "name": "factory-w-0123456789abcdef0123456789abcdef",
+    "namespace": "factory-workers"
+  },
+  "spec": {
+    "activeDeadlineSeconds": 420,
+    "affinity": {
+      "podAntiAffinity": {
+        "requiredDuringSchedulingIgnoredDuringExecution": [
+          {
+            "labelSelector": {
+              "matchExpressions": [
+                {
+                  "key": "factory.internal/repo",
+                  "operator": "NotIn",
+                  "values": [
+                    "99a40327a69b"
+                  ]
+                }
+              ]
+            },
+            "topologyKey": "kubernetes.io/hostname"
+          }
+        ]
+      }
+    },
+    "automountServiceAccountToken": false,
+    "containers": [
+      {
+        "command": [
+          "/usr/bin/tini",
+          "--",
+          "/opt/factory/bin/python",
+          "-m",
+          "factory.podworker"
+        ],
+        "env": [
+          {
+            "name": "FACTORY_SESSION_ID",
+            "value": "0123456789abcdef0123456789abcdef"
+          },
+          {
+            "name": "FACTORY_RELAY_URL",
+            "value": "http://10.244.1.7:8090"
+          },
+          {
+            "name": "FACTORY_SESSION_DEADLINE",
+            "value": "1800000420"
+          },
+          {
+            "name": "FACTORY_POD_NAME",
+            "valueFrom": {
+              "fieldRef": {
+                "fieldPath": "metadata.name"
+              }
+            }
+          },
+          {
+            "name": "FACTORY_POD_UID",
+            "valueFrom": {
+              "fieldRef": {
+                "fieldPath": "metadata.uid"
+              }
+            }
+          },
+          {
+            "name": "FACTORY_NODE_IP",
+            "valueFrom": {
+              "fieldRef": {
+                "fieldPath": "status.hostIP"
+              }
+            }
+          },
+          {
+            "name": "FACTORY_MANAGER_ADDRESS",
+            "value": "10.244.1.7"
+          },
+          {
+            "name": "FACTORY_MANAGER_METRICS_ADDRESS",
+            "value": "10.96.0.9"
+          },
+          {
+            "name": "FACTORY_API_PUBLIC_HOST",
+            "value": "example-cluster.hcp.example.invalid"
+          },
+          {
+            "name": "AZMON_COLLECT_ENV",
+            "value": "False"
+          }
+        ],
+        "image": "registry.example.invalid/factory@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "imagePullPolicy": "IfNotPresent",
+        "name": "worker",
+        "resources": {
+          "limits": {
+            "cpu": "1",
+            "ephemeral-storage": "10Gi",
+            "memory": "2Gi"
+          },
+          "requests": {
+            "cpu": "1",
+            "ephemeral-storage": "10Gi",
+            "memory": "2Gi"
+          }
+        },
+        "securityContext": {
+          "appArmorProfile": {
+            "type": "Unconfined"
+          },
+          "procMount": "Unmasked"
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/data",
+            "name": "data"
+          },
+          {
+            "mountPath": "/tmp",
+            "name": "tmp"
+          },
+          {
+            "mountPath": "/run/factory-session",
+            "name": "session",
+            "readOnly": true
+          }
+        ]
+      }
+    ],
+    "enableServiceLinks": false,
+    "hostUsers": false,
+    "nodeSelector": {
+      "kubernetes.io/os": "linux",
+      "pool": "worker"
+    },
+    "restartPolicy": "Never",
+    "serviceAccountName": "factory-worker",
+    "terminationGracePeriodSeconds": 30,
+    "tolerations": [
+      {
+        "effect": "NoSchedule",
+        "key": "workload",
+        "operator": "Equal",
+        "value": "worker"
+      }
+    ],
+    "volumes": [
+      {
+        "emptyDir": {
+          "sizeLimit": "7Gi"
+        },
+        "name": "data"
+      },
+      {
+        "emptyDir": {
+          "sizeLimit": "1Gi"
+        },
+        "name": "tmp"
+      },
+      {
+        "name": "session",
+        "secret": {
+          "defaultMode": 256,
+          "secretName": "factory-w-0123456789abcdef0123456789abcdef-s"
+        }
+      }
+    ]
+  }
+}
