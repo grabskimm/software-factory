@@ -160,7 +160,7 @@ class Denied(KubeError):
     """The API refused the object. `rules` holds the admission rule ids and nothing else.
 
     The status is 422 for what the API server's own validation refuses, and 403 for a ValidatingAdmissionPolicy that denies
-    (the policy's ``reason`` is ``Forbidden``): the first live run showed the 403 (docs/pod-backend-local-e2e.md), which this client had
+    (the policy's ``reason`` is ``Forbidden``): the first live run, against a real API server on kind, showed the 403, which this client had
     read as bad credentials.
     """
 

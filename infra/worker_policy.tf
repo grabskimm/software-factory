@@ -9,15 +9,15 @@
 #     the launcher's environment takes its image from (slice 17), so the two cannot drift. The policy admits a pod only if every
 #     container image equals it and has the digest form. The ConfigMap lives in the worker namespace, which no Role grants a verb
 #     on configmaps. An automatic image promotion changes the local and so this ConfigMap and the launcher's environment: the order
-#     of the two is not controlled and a bounded window in which the launcher's pods are denied is possible (UNVERIFIED, the runbook
-#     rehearses it); a denial is a refusal to launch, never an admission.
+#     of the two is not controlled and a bounded window in which the launcher's pods are denied is possible (UNVERIFIED: rehearse it
+#     on a scratch cluster); a denial is a refusal to launch, never an admission.
 #   * `kubernetes_manifest.worker_policy_pods` and its binding, `worker_policy_secrets` and its binding: the ValidatingAdmissionPolicy
 #     and ValidatingAdmissionPolicyBinding objects, read from the JSON files of infra/policy/ with `jsondecode(file(...))`. The
-#     same files are what a run of tools/local_pod_e2e/ applies to a real API server (a kind cluster) before it replays the golden
-#     objects and every mutation of tests/golden/ with tools/policy_matrix.py, so Terraform and the test share one source. Typed
+#     same files are what tools/policy_matrix.py applies to a real API server (a kind cluster, say) before it replays the golden
+#     objects and every mutation of tests/golden/, so Terraform and the test share one source. Typed
 #     resources exist for the policy (kubernetes_validating_admission_policy_v1) but not, as far as the provider documentation
 #     read for this change shows, for the binding; one manifest path for both keeps one lifecycle (the kubernetes_manifest path for
-#     admissionregistration.k8s.io/v1 kinds is UNVERIFIED until a plan and an apply have run on the mirror).
+#     admissionregistration.k8s.io/v1 kinds is UNVERIFIED until a plan and an apply have run on a scratch cluster).
 #
 # What the policies are bound to: the requests of ONE identity, the service account `factory` of the manager namespace (the only
 # identity whose token reaches the launcher, slice 17), by `matchConditions` on `request.userInfo.username`; the namespace
@@ -32,7 +32,7 @@
 #
 # What a text test cannot show (UNVERIFIED): that the provider path accepts these kinds, that the CEL of infra/policy/*.json is
 # accepted and evaluated by the API server of AKS the way a real API server of the pinned kind version does (the CEL environment
-# and the pod schema differ by Kubernetes version), and that the plan identity may read the kinds (infra/README.md, "Custom role").
+# and the pod schema differ by Kubernetes version), and that the plan identity may read the kinds (infra/README.md, "Bootstrap", step 4).
 
 locals {
   worker_policy_param_name = "worker-policy-params"

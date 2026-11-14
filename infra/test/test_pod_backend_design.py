@@ -5,7 +5,7 @@ run in CI as `python3 -I -m unittest discover -s infra/test` with no package ins
 launcher, relay and Kubernetes client sources are read with `ast` and regular expressions, never imported. A text test can check
 defaults, gating, the shape of an object and a wording; it cannot prove that a plan shows no line for the Deployment, that the
 kubelet starts three containers that share two directories under `hostUsers: false`, or that the webhook leaves the new
-containers alone. Only a real `terraform plan` and a run on the throwaway mirror can: the pull request says so, and
+containers alone. Only a real `terraform plan` and a run on a scratch cluster can: the pull request says so, and
 docs/pod-backend.md ("Terraform C") lists every such claim under UNVERIFIED.
 
 What is pinned here:
@@ -300,7 +300,7 @@ class EveryBackendLocalIsEmptyWhileTheBackendIsOff(unittest.TestCase):
         self.assertRegex(text, r"(?m)^\s*default\s*=\s*false\s*$")
         self.assertIn("!var.manager_pool_taint_enabled || var.pod_backend_enabled", text)
         flat = squash(text)
-        for needle in ("workload=manager:NoSchedule", "UNVERIFIED", "REPLACE", "cluster_snapshots_taken=true", "mirror"):
+        for needle in ("workload=manager:NoSchedule", "UNVERIFIED", "REPLACE", "cluster_snapshots_taken=true"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, flat)
 

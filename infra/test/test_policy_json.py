@@ -338,8 +338,7 @@ class Documentation(unittest.TestCase):
             "kubernetes_config_map_v1.worker_policy_params",
             "Admission matrix against a real API server",
             "tools/policy_matrix.py",
-            "run the admission matrix on the mirror",
-            "UNVERIFIED",
+            "Run the admission matrix on a scratch cluster",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.readme)

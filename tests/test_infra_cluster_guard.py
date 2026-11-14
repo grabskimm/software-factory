@@ -6,7 +6,7 @@ event, stage and action, and assert exit status and message. A second class read
 fails when a resource of the guarded classes exists that the guard does not list.
 
 Nothing here runs Terraform, Azure or GitHub: the guard is exercised against sample files. That the guard behaves in a
-real pipeline is UNVERIFIED (infra/README.md, UNVERIFIED).
+real pipeline is UNVERIFIED.
 """
 
 import contextlib

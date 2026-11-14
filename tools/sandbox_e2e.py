@@ -10,7 +10,7 @@ network or API key is needed, only ``claude`` and (on Linux) ``bwrap`` + ``socat
     pip install -e .
     python tools/sandbox_e2e.py          # exit 0 = every expectation held
 
-Use it on any new host, base image or Claude Code version (spike S1 on ACA).
+Use it on any new host, base image or Claude Code version.
 Exit status 1 lists the expectations that failed.
 """
 

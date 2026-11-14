@@ -26,10 +26,10 @@ def run_wrapper(*command, env=None):
 
 class ExecTests(unittest.TestCase):
     def test_runs_the_command_with_its_arguments_environment_and_exit_status(self):
-        env = {**os.environ, "SPIKE_VALUE": "7"}
+        env = {**os.environ, "PROBE_VALUE": "7"}
         done = run_wrapper(
             sys.executable, "-c",
-            "import os, sys; print(os.environ['SPIKE_VALUE'], sys.argv[1:]); sys.exit(3)",
+            "import os, sys; print(os.environ['PROBE_VALUE'], sys.argv[1:]); sys.exit(3)",
             "a", "--flag",
             env=env,
         )  # fmt: skip

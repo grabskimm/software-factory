@@ -4,17 +4,17 @@
 #   - terraform-azure-aks-private-cluster-disabled: the API server is public on purpose, protected by Entra ID and Azure
 #     RBAC with local accounts off, and restricted by aks_api_authorized_ip_ranges when the operator sets it. A private cluster
 #     cannot be reached from a hosted CI runner that plans and applies this stack (infra/README.md, "Network design",
-#     bullet "Cluster API", and "UNVERIFIED", item 1). Moving to one is an operator decision that needs a self-hosted runner.
+#     bullet "Cluster API"). Moving to one is an operator decision that needs a self-hosted runner.
 #   - terraform-azure-aks-network-policy-misconfigured: network_policy is null (the argument is omitted) until the operator
 #     stages the switch to the Cilium data plane (variables network_data_plane and network_policy; infra/README.md,
-#     "Safe deployments", "Switching the data plane").
+#     "Switching the data plane").
 # The scanner's other findings on the cluster (a customer-managed disk encryption set, the Azure Policy add-on) are not
 # decided here and stay visible.
 
 # The AKS cluster that runs Factory: one small system pool and one user pool `factory` with
 # exactly one Standard_D8ds_v5-class node that holds the manager pod.
 #
-# Why AKS and not Container Apps (spikes/S1.md): the bubblewrap sandbox only works in a pod
+# Why AKS and not Container Apps: the bubblewrap sandbox did not start on Container Apps and works only in a pod
 # with spec.hostUsers=false, securityContext.procMount=Unmasked and an Unconfined AppArmor
 # profile, on an Azure Linux node with runc. Those settings do not exist on Container Apps. A
 # hostUsers=false pod cannot mount NFS, so /data is an Azure Disk (k8s.tf), which is
@@ -172,8 +172,8 @@ resource "azurerm_kubernetes_cluster" "this" {
   # The data disk, the Caddy disk and the Prometheus disk live in the node resource group and are deleted with the
   # cluster, so a plan that would REPLACE or destroy it fails instead. It cannot depend on a variable (a lifecycle block
   # takes no expression). To tear the stack down on purpose, to re-create the cluster after a disk copy, or to delete a
-  # throwaway mirror, remove the line in a scratch copy of infra/ and never commit that (README.md, "Switching the data
-  # plane"). The data volume claim in k8s.tf has its own prevent_destroy: a destroy of a mirror needs both removed.
+  # test deployment, remove the line in a scratch copy of infra/ and never commit that (README.md, "Operations notes").
+  # The data volume claim in k8s.tf has its own prevent_destroy: a destroy of a test deployment needs both removed.
   lifecycle {
     prevent_destroy = true
   }

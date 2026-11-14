@@ -24,7 +24,7 @@
           },
           "annotations": {
             "summary": "The kubelet container metrics are not scraped, so the memory, restart and out-of-memory alerts have no data.",
-            "runbook": "Check the Prometheus targets page (kubectl -n monitoring port-forward svc/prometheus 9090) for the kubelet-cadvisor error. The usual causes are the ClusterRole of the prometheus service account and the node firewall rule for TCP 10250 (infra/README.md, UNVERIFIED)."
+            "runbook": "Check the Prometheus targets page (kubectl -n monitoring port-forward svc/prometheus 9090) for the kubelet-cadvisor error. The usual causes are the ClusterRole of the prometheus service account and the node firewall rule for TCP 10250 (infra/README.md, Network design)."
           }
         },
         {
@@ -320,7 +320,7 @@
           },
           "annotations": {
             "summary": "Prometheus cannot scrape kube-state-metrics, so the pending-pod, node-count, time-to-node and NodeClaim series and their alerts have no data.",
-            "runbook": "Check the pod (kubectl -n monitoring get pods -l app.kubernetes.io/name=kube-state-metrics; logs). With monitoring_nodeclaim_metrics_enabled the usual causes are the NodeClaim API version in the custom resource state file and the ClusterRole for nodeclaims and customresourcedefinitions (infra/README.md, Monitoring, UNVERIFIED); an image that cannot start under the restricted settings is the other."
+            "runbook": "Check the pod (kubectl -n monitoring get pods -l app.kubernetes.io/name=kube-state-metrics; logs). With monitoring_nodeclaim_metrics_enabled the usual causes are the NodeClaim API version in the custom resource state file and the ClusterRole for nodeclaims and customresourcedefinitions (infra/README.md, Monitoring); an image that cannot start under the restricted settings is the other."
           }
         },
         {

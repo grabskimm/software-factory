@@ -103,7 +103,7 @@ locals {
   # nodes cannot be provisioned without it) and the instance metadata service, then a deny for
   # every other internet-bound flow. Traffic inside the virtual network (nodes, the API
   # server's private tunnel endpoints, Azure DNS) is covered by the default outbound rules.
-  # UNVERIFIED on a real cluster, README.md: if the first apply times out creating the node
+  # Not verified against every node bootstrap (README.md, "Network design"): if the first apply times out creating the node
   # pools, this deny rule is the first thing to relax.
   node_nsg_rules = {
     # Inbound.

@@ -7,8 +7,8 @@
 # Two objects are `kubernetes_manifest`, and only because the typed kinds cannot say it:
 #
 #   * The Deployment. hostUsers, securityContext.procMount and securityContext.appArmorProfile
-#     are the three pod relaxations that make the bubblewrap sandbox work (spikes/S1.md, S1
-#     PASS), and kubernetes_deployment_v1 (hashicorp/kubernetes 3.5.0, checked against the
+#     are the three pod relaxations that make the bubblewrap sandbox work (the sandbox
+#     starts only with all three together), and kubernetes_deployment_v1 (hashicorp/kubernetes 3.5.0, checked against the
 #     provider schema) has no argument for any of them; neither have kubernetes_pod_v1 nor
 #     kubernetes_stateful_set_v1.
 #   * The SecretProviderClass. It is a custom resource of the Secrets Store CSI driver add-on,
@@ -25,13 +25,13 @@
 # that works today), readOnlyRootFilesystem (the entrypoint prepares /data
 # and /config as root and the image was not built for it), any seccomp, capability or
 # runAsUser setting for the Factory container (the image's entrypoint depends on the default
-# capability set, and S1 passed without any of them). The Factory pod differs from the default
+# capability set, and the sandbox works without any of them). The Factory pod differs from the default
 # only in the three relaxations named at the Deployment.
 #
 # Network policy. A NetworkPolicy is enforced only by the Cilium data plane (network_data_plane =
-# "cilium", variables.tf, switched on by hand: README.md, "Switching the data plane"); the reference
-# deployment's cluster runs the default data plane today, and a policy there is accepted by the API server and not
-# enforced. With the Cilium data plane an engine exists, and worker_ns.tf declares the default-deny policy
+# "cilium", variables.tf, switched on by hand: README.md, "Switching the data plane"); on the
+# default data plane the API server accepts a policy and does not
+# enforce it. With the Cilium data plane an engine exists, and worker_ns.tf declares the default-deny policy
 # of the worker namespace of the pod backend (pod_backend_enabled, off by default; the design record is
 # docs/pod-backend.md, issue #145). The policy of the Factory namespace stays prepared and off, for the
 # reason above.
@@ -163,8 +163,8 @@ resource "kubernetes_config_map_v1" "insights_agent" {
 
 # --- Storage -----------------------------------------------------------------------------------
 
-# /data is an Azure Disk, not a file share: a pod with hostUsers=false cannot mount NFS
-# (spikes/S2.md). Retain keeps the disk when the claim is deleted; WaitForFirstConsumer
+# /data is an Azure Disk, not a file share: a pod with hostUsers=false cannot mount NFS.
+# Retain keeps the disk when the claim is deleted; WaitForFirstConsumer
 # creates it where the pod is scheduled. The disk lives in the cluster's node resource group,
 # so deleting the CLUSTER deletes it too (README.md).
 resource "kubernetes_storage_class_v1" "factory_disk" {
@@ -305,14 +305,14 @@ resource "kubernetes_manifest" "secret_provider_class" {
 # stops the old pod (up to terminationGracePeriodSeconds, so drain first), then starts the new
 # one on the same node with the same disk.
 #
-# The pod differs from the default in exactly the three settings spikes/S1.md records the
-# sandbox PASS with (together; smaller sets tried failed, two subsets were not tried), all accepted by the operator:
+# The pod differs from the default in exactly the three settings the
+# sandbox needs (together; smaller sets tried failed, two subsets were not tried):
 #   spec.hostUsers: false                      (pod user namespace)
 #   securityContext.procMount: Unmasked        (container; requires hostUsers: false)
 #   securityContext.appArmorProfile: Unconfined (container)
 # Nothing else is relaxed or added: no privileged, no extra capability, the image keeps
 # setting no_new_privs itself, and managed-settings.json is untouched. The seccomp profile is
-# left at the cluster default on purpose: S1 passed with it, and RuntimeDefault was not tried.
+# left at the cluster default on purpose: the sandbox works with it, and RuntimeDefault was not tried.
 #
 # Init container: the Key Vault volume must be mounted by some container for the CSI driver to
 # publish it (a volume that no container mounts is skipped by the kubelet), and the synced

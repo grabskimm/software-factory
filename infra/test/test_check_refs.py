@@ -262,7 +262,7 @@ def block_text(name: str, header: str) -> str:
 
 
 class Design(unittest.TestCase):
-    """The AKS design decisions that must not regress silently (spikes/S1.md, the design record)."""
+    """The AKS design decisions that must not regress silently (the sandbox needs hostUsers, procMount and AppArmor; one replica; no static credentials)."""
 
     def test_cluster_has_no_static_credentials_and_uses_entra_rbac(self):
         cluster = block_text("aks.tf", 'resource "azurerm_kubernetes_cluster" "this"')

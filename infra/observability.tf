@@ -121,9 +121,8 @@ locals {
 
 # The control-plane log of node auto-provisioning (issue #149): Karpenter's own controller lines (nodeclaim created, registered and
 # initialized, node deleted, pods that could not be scheduled, drift) reach Log Analytics only through a diagnostic setting with this one
-# category; nothing else in the cluster scrapes Karpenter (it runs in the AKS control plane, no pod or Service exists in the cluster). Measured on a
-# throwaway cluster: 396 records in 35 minutes of deliberate churn, at most about 7 minutes after the event, in the shared AzureDiagnostics
-# table (the default destination, which the measurement used). Only the one category, so no other control-plane log is billed. It exists only with
+# category; nothing else in the cluster scrapes Karpenter (it runs in the AKS control plane, no pod or Service exists in the cluster). Records arrive in the
+# shared AzureDiagnostics table (the default destination) some minutes after the event. Only the one category, so no other control-plane log is billed. It exists only with
 # node auto-provisioning, whose category the cluster offers (docs/metrics.md).
 resource "azurerm_monitor_diagnostic_setting" "karpenter_events" {
   count = var.nap_mode == "Auto" ? 1 : 0

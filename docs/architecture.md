@@ -420,7 +420,7 @@ worktrees live on an **Azure Disk** (ext4, ReadWriteOnce, hence one replica), th
 lease taken with a workload identity, and workers are `claude -p` subprocesses under a separate UID.
 
 The sandbox passed in this pod with three settings together (`hostUsers: false`, `procMount: Unmasked`, `appArmorProfile: Unconfined`); the smaller sets that were tried failed, and two subsets were not tried, so no single setting is shown to be necessary on its own;
-Factory's own sandbox, capability model and managed settings are not weakened. The operator of the reference deployment accepted them; the sets that were tried and what each showed are in `spikes/S1.md`.
+Factory's own sandbox, capability model and managed settings are not weakened. The operator of the reference deployment accepted them. The sandbox did not start on Azure Container Apps, which is why the reference deployment is on AKS; `factory-sandbox-check` (`image/README.md`) is the check to run in the pod.
 They also make NFS impossible, which is why `/data` is a disk.
 
 * `infra/README.md` and `infra/`: Terraform (azurerm 4.x plus azapi, and the kubernetes provider): VNet, NAT gateway, NSG, the AKS cluster
@@ -437,10 +437,7 @@ They also make NFS impossible, which is why `/data` is a disk.
   model, the smoke test. See `image/README.md`; what is verified where (tools in the pod, CI as the authority
   for the rest, isolated runners, and what is deliberately not in the pod) is `docs/verification-tiers.md`.
 * `docs/operations.md`: day-to-day operation (start, status, drain vs pause, recovery, purge, key rotation).
-  `docs/pod-backend.md` and `docs/pod-backend-runbook.md`: the experimental per-session pod backend, off by default.
-* `spikes/`: the runnable S1 to S3 procedures and their recorded results. S1 failed on ACA and is recorded PASS on AKS with the three
-  relaxations; S2 and S3 passed on both. **Do not `terraform apply` unless S1, S2 and S3 are recorded PASS** (`spikes/README.md`;
-  the first line of each record says which it is, and nothing checks it for you).
+  `docs/pod-backend.md`: the experimental per-session pod backend, off by default.
 
 ## Layout
 
@@ -453,9 +450,9 @@ They also make NFS impossible, which is why `/data` is a disk.
 * `gitsafe.py` the only way the supervisor runs git on a worktree a worker touched, `purge.py`, `runner.py`, `manager.py` remote control surface, `history.py` history ledger, `dashboard.py` its read-only endpoints, `webui.py` with `ui/` its static browser page, `cli.py`.
 
 `tools/` holds the token
-broker, the sandbox end-to-end check and three read-only reports over run directories (`cache_report.py`: cache hit rate and
+broker (`token_broker.py`, with `requirements-token-broker.txt`), the sandbox end-to-end check (`sandbox_e2e.py`) and three read-only reports over run directories (`cache_report.py`: cache hit rate and
 cold starts per phase; `cache_write_sources.py`: an estimate of which tools' results fill the prompt cache, per phase; `effort_report.py`: tokens, cost, turns and
-outcome per recorded effort, `docs/operations.md`, "Comparing efforts"), `effort_ab.py` (the effort A/B harness that runs the controlled experiment against a sandbox repository, never merging, with a budget guard: `docs/operations.md`, "Running the effort A/B") and the check scripts of the live runbook of the pod backend (`live_checks.py` read-only `az` and `kubectl` checks, `live_reports.py` verdicts over saved files, `live_recording.py` the recording format and `live_pod_probe.py` probes for a pod of the mirror: delivered, not run; `docs/pod-backend-runbook.md`). `image/`, `infra/` and `spikes/` are described under "Optional reference deployment on AKS";
+outcome per recorded effort, `docs/operations.md`, "Comparing efforts"), `effort_ab.py` (the effort A/B harness that runs the controlled experiment against a sandbox repository, never merging, with a budget guard: `docs/operations.md`, "Running the effort A/B") and the policy and deploy tools (`policy_matrix.py` replays the worker admission matrix against a real API server, `infra_deploy_gate.py` and `infra_cluster_guard.py` guard a deploy: `docs/pod-backend.md`, `infra/README.md`). `scripts/` holds the helpers that register a repository with a deployment (`docs/enrolling-repositories.md`): `register-repo.sh` (manual merge) and `enroll-repo.sh` (hand-off to GitHub auto-merge), both a dry run unless given `--apply`, and `tfvars_repo_configs.py`, the stdlib-only Python helper that inserts, finds or replaces one entry in the `repo_configs` map of an `INFRA_TFVARS` text for `register-repo.sh`. `image/` and `infra/` are described under "Optional reference deployment on AKS";
 `handoff/` has the GitHub ruleset and auto-merge workflow for operators; `managed-settings.json` is the Claude Code sandbox baseline that the image copies; `.github/workflows/ci.yml` is the one CI workflow of this repository (compile, the unit tests, the token broker, the infra offline checks; it deploys nothing).
 
 `docs/` holds every page of the reference documentation:
@@ -463,4 +460,4 @@ outcome per recorded effort, `docs/operations.md`, "Comparing efforts"), `effort
 * `architecture.md` this page, `configuration.md` the per-repository config file, model and effort, labels and comments, and `manager.md` the manager reference (endpoints, authentication modes, settings).
 * `operations.md` day-to-day operation on AKS, `handoff.md` the GitHub ruleset and auto-merge that finish what Factory publishes, `enrolling-repositories.md` how a repository is registered, `metrics.md` the Prometheus series and dashboards, and `capacity.md` the worker budget, the memory guard and sizing.
 * `verification-tiers.md` what is verified in the pod, in CI and in isolated runners.
-* `pod-backend.md` the design record and shared contract of an optional per-session pod backend (default off, nothing is switched on, no behaviour yet), `pod-backend-runbook.md` the live runbook for it (read-only checks of a live deployment, a throwaway mirror, the plan identity gate and the recording format; nothing in it was run) and `pod-backend-local-e2e.md` the first end-to-end run of its pod on a local kind cluster, with a stub agent.
+* `pod-backend.md` the design record and shared contract of an optional per-session pod backend (default off, nothing is switched on).

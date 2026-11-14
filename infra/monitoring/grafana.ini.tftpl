@@ -1,5 +1,5 @@
 ; Grafana configuration, rendered by Terraform (infra/monitoring.tf). Grafana is served below /grafana/ of
-; the API host (Caddy, ingress.tf) and signs people in with Microsoft Entra ID; nobody is anonymous.
+; the API host (Caddy, ingress.tf) and signs people in with Microsoft Entra ID; %{ if anonymous_viewer }anyone who can reach the host may also read it without signing in, as a Viewer who cannot edit (grafana_anonymous_viewer_enabled).%{ else }nobody is anonymous.%{ endif }
 ; The OIDC client secret is not here: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET__FILE points at the Key Vault file.
 
 [server]
@@ -35,7 +35,13 @@ disable_login_form = true
 disable_signout_menu = false
 
 [auth.anonymous]
-enabled = false
+enabled = ${anonymous_viewer}
+%{ if anonymous_viewer ~}
+; Visitors read as a Viewer of the organization the dashboards are provisioned into (orgId 1, Grafana's default "Main Org.").
+; A Viewer cannot edit, use Explore or create snapshots ([users] viewers_can_edit = false). Operators sign in at /grafana/login.
+org_name = Main Org.
+org_role = Viewer
+%{ endif ~}
 hide_version = true
 
 [auth.basic]

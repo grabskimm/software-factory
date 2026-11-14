@@ -12,7 +12,7 @@
 #     installation token);
 #   * CAP_KILL, because kill(2) between two different UIDs needs it: without it
 #     the supervisor cannot signal a worker's process group (lease loss, timeout,
-#     drain, purge), see invariant 11. Found with spikes/s3_uid_split.py (EPERM).
+#     drain, purge), see invariant 11 (EPERM without it).
 #
 #   inheritable set = ambient set = bounding set = { setuid, setgid, kill }
 #   permitted/effective = the same (the kernel derives them from the ambient set
@@ -67,21 +67,21 @@ fi
 config_dir=${FACTORY_CONFIG:-/config}
 data_dir=${FACTORY_DATA:-/data}
 
-# Best effort, and loud on failure. Azure Files NFS may squash root (spike S2 in
-# spikes/README.md); then mkdir/chown/chmod can fail here and the data tree must
-# be made writable for uid 10001 on the storage side. The supervisor then fails
-# on its own, with a clear error, the first time it writes.
+# Best effort, and loud on failure. Azure Files NFS may squash root; then
+# mkdir/chown/chmod can fail here and the data tree must be made writable for
+# uid 10001 on the storage side. The supervisor then fails on its own, with a
+# clear error, the first time it writes.
 if ! mkdir -p -- "$config_dir"; then
 	warn "cannot create $config_dir"
 fi
 if ! mkdir -p -- "$data_dir/repos"; then
-	warn "cannot create $data_dir/repos (NFS root squash? see spike S2)"
+	warn "cannot create $data_dir/repos (NFS root squash?)"
 else
 	# The data root and repos/ must let group factory-work traverse (0710) so that
 	# the worker identity can reach the worktrees it is given (permissions.py).
 	for path in "$data_dir" "$data_dir/repos"; do
 		if ! chown "$FACTORY_UID:$WORK_GID" -- "$path"; then
-			warn "cannot chown $path to $FACTORY_UID:$WORK_GID (NFS root squash? see spike S2)"
+			warn "cannot chown $path to $FACTORY_UID:$WORK_GID (NFS root squash?)"
 		fi
 		if ! chmod 0710 -- "$path"; then
 			warn "cannot chmod 0710 $path"
@@ -91,7 +91,7 @@ else
 	# test what matters: can the factory identity write there?
 	if ! setpriv --reuid="$FACTORY_UID" --regid="$FACTORY_GID" --groups="$WORK_GID" \
 		test -w "$data_dir/repos"; then
-		warn "uid $FACTORY_UID cannot write $data_dir/repos; runs will fail until the share allows it (spike S2)"
+		warn "uid $FACTORY_UID cannot write $data_dir/repos; runs will fail until the share allows it"
 	fi
 fi
 

@@ -22,23 +22,22 @@ Slices 19 and 20 add the pod-side liveness verdict (`src/factory/podliveness.py`
 a recovery that waits for a live pod and a deploy gate that waits for running pods (section "Pod-side liveness, the orphan sweep and the deploy gate"); the hooks exist in `operations` and `manager` but are
 dormant until `Manager.pods` is set by the pod backend.
 
-"The pod worker, part A"). Nothing but the pod backend of slice 12b imports the relay's session record, the launcher client, the bundle's
+Nothing but the pod backend of slice 12b imports the relay's session record, the launcher client, the bundle's
 staging or the delta (the wrapper imports the bundle, and nothing launches the wrapper): nothing starts the launcher (below), so no pod
 can be started, and no job ever records a pod handle unless the switch is on. Slice 9b adds to the bundle module the validation and the safe apply of the file delta a pod returns
 (section "The file delta: validation and safe apply"); only the pod backend calls it.
 Every repository still runs its sessions inside the manager pod, exactly as before. The four issues stay open
-until a person has run the live runbook (`docs/pod-backend-runbook.md`, slice 21, delivered and not run: section "The live
-runbook and its check scripts") and the owner has decided to switch anything on. One thing has run since: the first end-to-end run on a local kind
-cluster with a stub agent, `docs/pod-backend-local-e2e.md` (a pod ran for the first time; it found and fixed two defects and lists two more; it is not the runbook and
-says what it did not settle).
+until a person has run the pod backend against a real cluster and the owner has decided to switch anything on. One thing has run: a first
+end-to-end run on a local kind cluster with a stub agent (a pod ran for the first time; the harness that ran it is not shipped here). It found that an admission denial is a 403 and not a 422
+(fixed: "The client", "A denial") and settled nothing about Azure, AKS, Cilium, node auto-provisioning or a real `claude` session.
 Slice 11 adds the launcher program and its manager-side client (section "The launcher and its client"); nothing imports or starts
 them yet. Slice 18 adds the pod pool (`src/factory/podpool.py`, section "The pod pool: ceiling, pacing and reserve-on-admit"): the
 ceiling, pacing and reserve-on-admit guard the pod backend will ask before every launch; nothing imports it yet.
 
-them yet. Slices 16 and 17 (section "Terraform C") add the Terraform that would start them: the launcher's Role and RoleBinding and the
+Slices 16 and 17 (section "Terraform C") add the Terraform that would start them: the launcher's Role and RoleBinding and the
 launcher and relay containers of the manager pod, all default off with `pod_backend_enabled`; the manager still refuses `execution = "pod"`.
 
-them yet. Slice 12b adds `PodBackend` (section "The pod backend (slice 12b)"): the one place that uses the launcher client, the relay's
+Slice 12b adds `PodBackend` (section "The pod backend (slice 12b)"): the one place that uses the launcher client, the relay's
 spool, the bundle and the delta. It is selected only by `execution = "pod"` of a repository AND `FACTORY_POD_BACKEND=on` of the manager, both
 off by default; nothing starts a launcher or a relay, so a switched-on deployment would still have no pod to launch.
 
@@ -61,8 +60,8 @@ Kubernetes API or of the relay is "contract-tested against assumed shapes", neve
 > (18), the liveness and the sweep (19, 20) and the report and manifest of the pod worker (10b). Everything is still **off by default**:
 > `execution = "inprocess"` per repository and `FACTORY_POD_BACKEND` off in the manager; with the switch off no pod module is imported
 > (a test starts a fresh interpreter and checks `sys.modules`), the launcher and the relay are not started (slice 17 creates them only with
-> `pod_backend_enabled`), and the in-process path is unchanged. **No pod has ever run:** every claim is contract-tested against fakes and
-> the real code of both sides, and the list of what only a cluster can settle is the one near the end of this page; the live runbook (slice 21) is the
+> `pod_backend_enabled`), and the in-process path is unchanged. **No pod has ever run on a real deployment** (one ran once on a local kind cluster with a stub agent): every claim is contract-tested against fakes and
+> the real code of both sides, and the list of what only a cluster can settle is the one near the end of this page; a run against a real cluster is the
 > way to settle it, and slice 22 (recorded fixtures) waits for it.
 
 ## What it is for
@@ -84,8 +83,8 @@ needs the fixed node to shrink (#148); this program does not claim a saving.
   not options.
 * **Transcripts go to a relay, not to pod logs**, so they stay out of Log Analytics.
 * **Offline first.** Everything is built and tested without a cluster, including the Terraform,
-  which is default off. No apply is run by an assistant; someone with Azure access runs a runbook
-  (read-only production checks, then a throwaway mirror built from the same `infra/` code with its
+  which is default off. No apply is run by an assistant; someone with Azure access runs the checks
+  (read-only production checks, then a scratch deployment: a copy of `infra/` deployed for testing, with its
   own name prefix and state). Recorded responses later become test fixtures.
 * **Spend guard:** a pod session starts only if spent plus reserved caps fit `run_budget_usd`; an
   explicit concurrency ceiling (default 8) derived from the NodePool limit; a stop-the-world breaker
@@ -605,8 +604,7 @@ from the repository config.
 ## Terraform A: the cluster and the worker pool (slice 14, issues #144 and #146)
 
 Everything here is **default off, nothing is switched on**. No apply is run by an assistant: the checks
-that ran are named in the pull request (L, L-tf, C, P of the legend below), and the live ones (V) are for a
-person with Azure access.
+that ran are named in the pull request, and the live ones are for a person with Azure access.
 
 | Piece | Where | Default |
 |---|---|---|
@@ -619,7 +617,7 @@ person with Azure access.
 
 * **Order (never a pull request).** (1) Cilium, (2) node auto-provisioning, (3) the NodePool objects,
   (4) the pod backend (slices 15a to 17). The values live in `INFRA_TFVARS`; each step is a manual run
-  behind the drain gate, after snapshots, and only after the throwaway mirror has run it. The steps and
+  behind the drain gate, after snapshots, and only after a scratch deployment has run it. The steps and
   what each does are in `infra/README.md`, "Safe deployments", "Switching the data plane".
 * **The NodePool.** `Standard_D4s_v6` (not measured: the allocatable of the contract's 3.86 vCPU is from `D4ds_v5`), `on-demand`, `amd64`, `linux`, label `pool=worker` and
   `kubernetes.azure.com/ebpf-dataplane: cilium`, taint `workload=worker:NoSchedule`, `limits.cpu` from the
@@ -634,31 +632,30 @@ person with Azure access.
 * **Surge reserve.** With the pool on, `limits_cpu + 2 * production_vcpu <= family_vcpu_quota`, where
   `production_vcpu` counts only the production pools in the worker pool's VM family (the quota is per
   family), one node each; the figures are a function of the configured pools and the worker size.
-  A worked example, from one reference subscription (read on 2026-11-09; your quotas differ):
-  the deployment ran 12 vCPUs, all `Dds_v5` (system `D2ds_v5`, factory `D8ds_v5`, `mon` `D2ds_v5`; 10
-  without `mon`), the `Dds_v5` family was 65, `Dsv6` and `Dsv7` carried 350 each, the regional total was
-  150. With the default `Standard_D4s_v6` the production pools are not in the worker family, so the
-  check asks only that the limit fit the family quota; the **regional total is not checked by
-  Terraform** and binds: the largest limit is 124 (31 nodes) and the default 32 leaves 106 before a
-  surge and 94 while system, factory and `mon` surge together. With a size of the production family
-  (`Standard_D4ds_v5`, quota 65) the largest limit is 40 (10 nodes; 44 and 11 only without `mon`) and
-  the default 32 leaves 21 before a surge and 9 while all three surge. The mirror shares the
-  subscription and the quotas with production, which the validation cannot see.
+  A worked example with invented figures, which are not any real subscription's (read your own quotas with `az vm list-usage`):
+  a deployment runs 12 vCPUs, all `Dds_v5` (system `D2ds_v5`, factory `D8ds_v5`, `mon` `D2ds_v5`; 10
+  without `mon`), the `Dds_v5` family quota is 80, `Dsv6` and `Dsv7` carry 200 each, the regional total is
+  120. With the default `Standard_D4s_v6` the production pools are not in the worker family, so the
+  check asks only that the limit fit the family quota (up to 200); the **regional total is not checked by
+  Terraform** and binds: the largest limit is 96 (24 nodes) and the default 32 leaves 76 before a
+  surge and 64 while system, factory and `mon` surge together. With a size of the production family
+  (`Standard_D4ds_v5`, quota 80) the largest limit is 56 (14 nodes; 60 and 15 only without `mon`) and
+  the default 32 leaves 36 before a surge and 24 while all three surge. A scratch deployment in the same
+  subscription shares the quotas, which the validation cannot see.
 * **Guard.** Both manifests are listed under `POOL_OBJECTS` in `tools/infra_cluster_guard.py`: setting
   `worker_nodepool_enabled = false` in `INFRA_TFVARS` would DELETE the NodePool, a disruption that ignores
   `do-not-disrupt`, so an automatic run after an image build (your own pipeline's) refuses it and a manual run applies it
   through the drain gate.
 * **`prevent_destroy`.** A plan that would replace or destroy the cluster now fails, because the data
-  disk, the Caddy disk and the Prometheus disk die with it. It cannot be conditional; the mirror's
-  teardown and a deliberate re-create work on a scratch copy of `infra/` with the line removed, never
+  disk, the Caddy disk and the Prometheus disk die with it. It cannot be conditional; the teardown of a
+  scratch deployment and a deliberate re-create work on a scratch copy of `infra/` with the line removed, never
   committed.
 
 ## Terraform B1: the worker namespace (slice 15a, issues #144 and #145)
 
 Everything here is **default off, nothing is switched on**: one new variable, `pod_backend_enabled` (default `false`),
 gates the three objects of `infra/worker_ns.tf`, the log exclusion and the relay rule, so a default merge has no plan
-line. No apply is run by an assistant; the checks that ran are named in the pull request (L, L-tf, C, P of the legend
-below). With the variable off the Container Insights ConfigMap data is byte-identical to what it was before.
+line. No apply is run by an assistant; the checks that ran are named in the pull request. With the variable off the Container Insights ConfigMap data is byte-identical to what it was before.
 
 | Piece | Where | Default |
 |---|---|---|
@@ -693,8 +690,8 @@ below). With the variable off the Container Insights ConfigMap data is byte-iden
   stands under both `[log_collection_settings.stdout]` and `[log_collection_settings.stderr]`. An explicit list
   **replaces** the agent's documented default (`["kube-system","gatekeeper-system"]`), so naming only the worker
   namespace would newly collect the output of both; the list is spelled out in full. The namespace depends on the
-  ConfigMap, so the exclusion exists before any worker pod, and a ConfigMap change restarts the agent (the runbook
-  checks that it has restarted with the new settings before the first session). The session transcript goes to the
+  ConfigMap, so the exclusion exists before any worker pod, and a ConfigMap change restarts the agent (check that it has restarted
+  with the new settings before the first session). The session transcript goes to the
   relay, not to the pod log; this exclusion is the second layer for a stray line.
 * **The relay rule.** The prepared `factory_network_policy` selects the manager pod and admits only what it lists.
   With `pod_backend_enabled` it is given a third, **last** rule: the relay port from the pods labelled
@@ -746,7 +743,7 @@ prerequisite of the pod backend, not defence in depth**. Nothing can create a po
   `serviceAccount` alias, the empty pod `securityContext`, the two `NoExecute` tolerations and the `memory-pressure` one, the termination message fields and the
   `apiVersion` of a `fieldRef` are accepted only with their default value; the `tolerations` rule ignores exactly the two
   defaulted `NoExecute` ones and the defaulted `memory-pressure` `NoSchedule` one (the API server adds it to every pod that is not
-  BestEffort; the AKS mirror run of issue #144 found that a policy without it refuses every worker pod). (3) Absence cannot be tested where the server fills the default in: `terminationGracePeriodSeconds`, a request
+  BestEffort; the scratch-deployment run of issue #144 on AKS found that a policy without it refuses every worker pod). (3) Absence cannot be tested where the server fills the default in: `terminationGracePeriodSeconds`, a request
   that equals its limit, a Secret `type`, the `status`, an empty list: a handful of mutations of the golden files (six in the first live run) therefore reach the
   policy as the golden object ("no effect", below). (4) An `emptyDir` `sizeLimit` is whole `Mi` or `Gi` (stricter than the mirror:
   the server writes `1e3` as `1k`). (5) A Secret has no pod to compare with, so `secret-name` checks the form (`<pod name>-s`) and
@@ -763,11 +760,10 @@ prerequisite of the pod backend, not defence in depth**. Nothing can create a po
   another policy or without a rule id, and a timeout fail it. It uses argv lists only (no shell), bounds every call with a timeout
   and prints no manifest, response or secret. Its `status` command waits for the API server to type-check both policies and fails on
   any expression warning (the type check against the pod schema is asynchronous); `fixtures` prints the namespace, service account,
-  parameter and Role a bare cluster needs. **Where it runs:** by hand, against a kind cluster (`tools/local_pod_e2e/`,
-  `docs/pod-backend-local-e2e.md`) or the throwaway mirror (`infra/README.md`, "run the admission matrix on the mirror"); a pull
+  parameter and Role a bare cluster needs. **Where it runs:** by hand, against a kind cluster (with the two feature gates below) or a scratch deployment; a pull
   request that adds or changes the policies should attach the recorded output.
 * **The admission matrix on kind.** `tools/policy_matrix.py` was validated on a kind cluster (v1.36.1, node image digest pinned, the two feature gates a worker pod
-  needs: `UserNamespacesSupport`, `ProcMountType`; `tools/local_pod_e2e/kind.yaml`): apply `tools/policy_matrix.py fixtures` and the four files of
+  needs: `UserNamespacesSupport`, `ProcMountType`): apply `tools/policy_matrix.py fixtures` and the four files of
   `infra/policy/`, wait for the type check (`status`) and run the matrix (`run`). The evaluator is the API server of that node image, not AKS.
   **First live run (2026-11-09, kind v1.36.1, reproduced locally):** three things the offline tests could not show. (1) `status` ran
   as the impersonated launcher identity, which may only create pods and secrets, so it could never read a policy and always reported
@@ -783,8 +779,12 @@ prerequisite of the pod backend, not defence in depth**. Nothing can create a po
   (seven in all). `validatingadmissionpolicies` and `validatingadmissionpolicybindings` have **no data action in the public Azure
   permissions reference** (checked 2026-11-09: it lists the webhook configurations and the discovery paths of the group), so they
   are not in the role: a definition that names an action the provider does not define is refused. Whether the authorizer maps them
-  to `customresources/read` is UNVERIFIED. A human updates the role definition before any enabling flip (runbook Part F), with a
-  plan run as the plan identity on the mirror as the check.
+  to `customresources/read` is UNVERIFIED. A human updates the role definition before any enabling flip, with a
+  plan run as the plan identity on a scratch deployment as the check: that plan passes before any production enabling flip, any apply of the admission
+  policies in production and any update of the production role, and a `Forbidden` is a stop and a report, never a widening of the role by
+  guessing a name. A custom role name is tenant-wide: `az role definition update` on `Factory Plan Cluster Reader` changes the **production**
+  role, so the plan identity of a scratch deployment gets a role of another name (`Factory Plan Cluster Reader <prefix>`) and the production role is
+  updated in exactly one step, after that plan has passed, by the owner.
 * **Guard.** The parameter and the four manifests are `POOL_OBJECTS` in `tools/infra_cluster_guard.py`: turning the variable off
   would remove the fence while pods may still run.
 * **Order (binding on slice 16).** The RoleBinding that lets the launcher create pods MUST `depends_on` both policy bindings
@@ -799,7 +799,7 @@ prerequisite of the pod backend, not defence in depth**. Nothing can create a po
 Everything here is **default off, delivered, not wired in**: it is created only by `pod_backend_enabled` (the gate of slices 15a and
 15b, count 0 by default, the same three preconditions), plus one separate flip, `manager_pool_taint_enabled`, so a default merge has
 no plan line for any of it and the Deployment of a default plan is the object it was. No apply is run by an assistant; the checks that
-ran are named in the pull request (L, L-tf, C, P of the legend below), and the live ones (V) are the runbook's (slice 21). Even with
+ran are named in the pull request, and the live ones are for a person with Azure access. Even with
 the variable on, **nothing launches a pod**: the manager refuses `execution = "pod"` (slice 12a) because no pod backend is built into
 it (slice 12b).
 
@@ -829,7 +829,7 @@ it (slice 12b).
   depend on the binding: a launcher that starts before the binding exists only gets `403` answers, which fail closed.
 * **The plan identity.** The custom role already carries `roles/read` and `rolebindings/read` (slice 15b): this slice needs **no new
   data action**, so `infra/roles/factory-plan-cluster-reader.json` is unchanged and the test that pins its seven actions still holds. That
-  the plan identity can read these two kinds in a plan is UNVERIFIED (the mirror's plan as that identity decides).
+  the plan identity can read these two kinds in a plan is UNVERIFIED (a plan on a scratch deployment as that identity decides).
 * **Guard.** The Role, the binding and the relay Service are listed under `POOL_OBJECTS` in `tools/infra_cluster_guard.py`
   (the completeness rule of `tests/test_infra_cluster_guard.py` failed until they were: it detects them by `local.worker_ns_count` and by the
   namespace). Turning the variable off ends the launcher's right to create a pod at once, so the automatic run refuses it and a manual run
@@ -889,7 +889,7 @@ What the pod becomes with the backend on (every name, uid, path and port is read
   `pod_backend_enabled`, checked in the variable), which sets `node_taints` of the pool `factory`; the toleration therefore always exists before the
   taint. A change of `node_taints` may **replace** the pool (the provider documents it as forcing a new resource; UNVERIFIED for the pinned
   version), which deletes the manager's node: the pool is a CLUSTER object of the guard, so it is refused on the automatic path and on
-  `stage=all` and needs `cluster_snapshots_taken=true` on `stage=cluster`. Run it on the mirror first; whether the Secrets Store CSI driver and
+  `stage=all` and needs `cluster_snapshots_taken=true` on `stage=cluster`. Run it on a scratch deployment first; whether the Secrets Store CSI driver and
   the Azure Disk CSI driver tolerate the taint on this cluster is UNVERIFIED, and a manager that cannot mount its Key Vault volume is down.
   The worker pool's own taint (`workload=worker:NoSchedule`) is slice 14's and is unchanged; worker pods select `pool=worker` and tolerate only it.
 * **Why locals and not a conditional.** A conditional `cond ? [a, b] : []` needs one type for both branches, which a list of unlike
@@ -906,7 +906,7 @@ What the pod becomes with the backend on (every name, uid, path and port is read
 
 **Checks.** L: `python3 -I -m unittest discover -s infra/test`, `python3 -I infra/test/check_refs.py`, `terraform fmt -check -recursive infra`, and
 `PYTHONPATH=src python3 -m unittest tests.test_infra_pod_backend tests.test_infra_cluster_guard`. C: compile, the unit tests and the infra offline tests (`.github/workflows/ci.yml`); `terraform fmt`, `validate` and `tflint` run locally. P: a
-`terraform plan` with the read-only identity (your pipeline's plan step) must show **no line at all** with the defaults: no Role, binding, Service or Deployment change and no change of the pool `factory`. V: the runbook (slice 21).
+`terraform plan` with the read-only identity (your pipeline's plan step) must show **no line at all** with the defaults: no Role, binding, Service or Deployment change and no change of the pool `factory`. V (live only): a person with Azure access.
 
 **UNVERIFIED (slices 16 and 17: none of it can be seen without a cluster).**
 * That a default plan shows no line for the Deployment, the pool `factory` or anything else (a text test and an expression evaluation pin the gating; only a `terraform plan` with the read-only identity decides),
@@ -928,7 +928,7 @@ What the pod becomes with the backend on (every name, uid, path and port is read
 | L | a local checkout | `PYTHONPATH=src python3 -m unittest tests.test_podcontract tests.test_podspec`, `python3 -I -m unittest discover -s infra/test`, `python3 -I infra/test/check_refs.py`, `compileall` |
 | C | CI on the pull request (`.github/workflows/ci.yml`), and locally for the Terraform tools | compile, the unit tests on Python 3.11 to 3.13 and the infra offline checks run in CI; `terraform fmt`, `init -backend=false`, `validate` and `tflint` (clean, with the annotation) run locally |
 | P | a `terraform plan` with the read-only plan identity | a real plan with the read-only identity; slice 0 must show no line for the cluster, any node pool, the manager Deployment or the data volume, and no line at all (a local only); slice 6 touches no Terraform |
-| V | live, a person with Azure access | none for slices 0 and 6; the template is applied for real only on the throwaway mirror of a later slice |
+| V | live, a person with Azure access | none for slices 0 and 6; the template is applied for real only on a scratch deployment in a later slice |
 
 ## The relay and the session record (slice 8)
 
@@ -1055,7 +1055,7 @@ and `read_heartbeat`, `mark(..., "revoke")` for every termination it requests, c
 **Slice 8, where each check runs.** L: `PYTHONPATH=src python3 -m unittest tests.test_relay tests.test_sessionrecord`
 (deterministic: a fake clock, no sleeps, no network beyond 127.0.0.1). C: compile and the unit tests on Python 3.11 to 3.13
 (`.github/workflows/ci.yml`). P: not applicable (no Terraform). V (live only): uid 10002 in the manager's main container
-cannot list `/spool`; relay throughput on a real repository (slice 21).
+cannot list `/spool`; relay throughput on a real repository.
 
 **UNVERIFIED (slice 8).** Relay throughput and the 12 GiB / 16Gi numbers on a real repository; the spool permission
 behaviour under `hostUsers: false` with two containers sharing an `emptyDir` whose owner an init container sets; plain
@@ -1191,7 +1191,7 @@ the key can never raise), and a state file written before this slice recovers ex
 The previous image itself is not run.
 
 Checks for this slice: L (`tests.test_podhandle` plus the tests of the modules it touches) and C. P is not applicable
-(no Terraform). Live: restart recovery with a real pod and a real launcher outage is the mirror's (slice 21).
+(no Terraform). Live (not run): restart recovery with a real pod and a real launcher outage.
 
 ## The bundle and ship-in staging (slice 9a)
 
@@ -1353,7 +1353,7 @@ admission and `stage` consult one shared reservation (or run them from one lock)
 **Slice 9a, where each check runs.** L: `PYTHONPATH=src python3 -m unittest tests.test_bundle tests.test_gitsafe_lint`
 (real local git repositories; the fifo tests use a thread with a timeout, not a sleep). C: compile and the unit tests on Python
 3.11 to 3.13 (`.github/workflows/ci.yml`). P: not applicable (no Terraform). V (live only): bundle size and time on real
-repositories (slice 21).
+repositories.
 
 **UNVERIFIED (slice 9a).** Throughput and size on real repositories (only synthetic and small test clones were run); the
 shallow-clone depth that review diffs really need (the formula above is exact for the shapes tested, not proven for criss-cross
@@ -1375,7 +1375,7 @@ section) adds running `claude` as the worker identity, streaming, the delta, the
 tree and can run nothing never looks like a session that ran). Nothing launches a pod yet. Wording: **contract-tested** against the in-process
 relay, a fake network and real temporary directories; no container ran and no cluster was consulted.
 
-**Output discipline (R1-3, S1-15).** Log Analytics collects stdout and stderr cluster-wide, so the wrapper's own streams carry
+**Output discipline.** Log Analytics collects stdout and stderr cluster-wide, so the wrapper's own streams carry
 only these lines, each a fixed text:
 
 | Line | When |
@@ -1420,7 +1420,7 @@ The numbers avoid 126 and 127 (`execnocaps`) and the 128-plus-signal range. A fa
 (`manifest` to `spawn`) is reported by the exit code only: the wrapper posts no result for it, so the supervisor sees a pod that
 ended with a fixed code and no result. Part B posts the final outcome of a session that ran, see below.
 
-**The network canary (R1-5, S1-16), before any tree is fetched.** In parallel, one thread per check, three seconds each, every
+**The network canary, before any tree is fetched.** In parallel, one thread per check, three seconds each, every
 join bounded:
 
 * a TCP connect that **sends nothing** to each forbidden destination of `podcontract.CANARY_FORBIDDEN`: the instance metadata
@@ -1447,7 +1447,7 @@ accepts them all). The supervisor treats a failed preflight as `isolation_failed
 
 **Coverage, stated so nothing is assumed.** `kubernetes.default` is covered by the service-address probe. "Another worker pod"
 is NOT probed (the pod cannot know a peer's address): it is covered by the network policy only (ingress denied, slice 15a) and
-by the live control in the runbook. The canary proves what is reachable from THIS pod at THIS moment; it is not a proof of the
+by a live control from a pod of a real cluster, which has not been run. The canary proves what is reachable from THIS pod at THIS moment; it is not a proof of the
 policy.
 
 **Fetch.** After a good canary the wrapper posts `{"result": "ok"}` and `GET`s `/v1/bundle` once. A relay answer of 425 (the
@@ -1482,7 +1482,7 @@ outside the worktree, and unique among the manifest's paths. A file is created w
 file (the prompt) stays root's: only the wrapper reads it and hands it to `claude` on its standard input, as `LocalBackend` does.
 A 0640 file (settings, system prompt, the `.gitconfig` with `safe.directory`) gets the worker's group, so the worker reads it and
 cannot change it. `PodBackend` (slice 12b) writes these keys from the `LaunchSpec` (`files`, `home`, `config_dir`); a prompt or a
-settings file too large for the manifest (`bundle.MANIFEST_MAX_BYTES`, **2 MiB**; it was 256 KiB until 2026-11-11, when a 568 KB system prompt built from a repository's skills made every plan of that repository fail on production) fails the staging (`BundleTooLarge`, "bundle too large"). The files are base64 in the manifest (4/3 of their size), so the largest system prompt is about 1.4 MiB.
+settings file too large for the manifest (`bundle.MANIFEST_MAX_BYTES`, **2 MiB**, sized so that a long system prompt built from a repository's skills fits) fails the staging (`BundleTooLarge`, "bundle too large"). The files are base64 in the manifest (4/3 of their size), so the largest system prompt is about 1.4 MiB.
 
 **The token.** The relay token and the key are root-only files of the Secret volume (`/run/factory-session`). The wrapper reads
 the token file only: it must be a regular file with no group or other permission bit (the kubelet's volume is a set of links
@@ -1496,8 +1496,8 @@ UNVERIFIED); the mode is.
 thread has a bounded join, no test sleeps and the backoff runs on an injected clock; `chown` is patched, plus one run with the
 real `lchown` to the current identity). C: compile and the unit tests on Python 3.11 to 3.13
 (`.github/workflows/ci.yml`). An image build and its smoke test belong to the operator's own pipeline or a manual `docker build`
-(`image/README.md`, "Build and check"): the module is part of the image; the smoke test does not run it. P: not applicable. V (live only): everything in a real pod
-(slice 21): the canary outcomes on a real node, `KUBERNETES_SERVICE_HOST` in a pod with `enableServiceLinks: false`, the token
+(`image/README.md`, "Build and check"): the module is part of the image; the smoke test does not run it. P: not applicable. V (live only): everything in a real pod:
+the canary outcomes on a real node, `KUBERNETES_SERVICE_HOST` in a pod with `enableServiceLinks: false`, the token
 file's mode and owner, uid 10002 unable to read it.
 
 **UNVERIFIED (slice 10a).** The wrapper `command` and the `tini` path in the image; that the canary destinations are the complete
@@ -1648,7 +1648,7 @@ tests.test_podreport tests.test_bundle tests.test_delta_malicious` (real childre
 sessions, the relay's real server on 127.0.0.1, a scripted server for answers the relay does not give, a FIFO for the one rendezvous
 with the child; the worker identity is the test's own, and the identity keywords are checked on a recording stand-in for `Popen`).
 C: compile and the unit tests on Python 3.11 to 3.13 (`.github/workflows/ci.yml`); the new module is part of the image, and an image
-build belongs to the operator's own pipeline or a manual `docker build`. P: not applicable. V (live only): everything in a real pod (slice 21), see the list below.
+build belongs to the operator's own pipeline or a manual `docker build`. P: not applicable. V (live only): everything in a real pod, see the list below.
 
 **UNVERIFIED (slice 10b).** `Popen(user=, group=, extra_groups=[])` and `execnocaps` as container root under `hostUsers: false` (the
 `setgroups` and `prctl` calls with the pod's capability set and seccomp profile); that the agent really runs as uid 10002 with an
@@ -1774,8 +1774,8 @@ with `delta too large`, it is never truncated, and the owner decides per reposit
 **Slice 9b, where each check runs.** L: `PYTHONPATH=src python3 -m unittest tests.test_delta_malicious tests.test_bundle` (real
 directories and real local git repositories; the malicious-payload suite checks that after every rejected delta the whole tree, the
 directory a link points at and the scratch directory are byte-identical: type, mode, inode, modification time and content). C: compile and the
-unit tests on Python 3.11 to 3.13 (`.github/workflows/ci.yml`). P: not applicable. V (live only): real-repository delta sizes and times
-(slice 21). The suite proves the supervisor's side of the validator; it does not prove the pod side.
+unit tests on Python 3.11 to 3.13 (`.github/workflows/ci.yml`). P: not applicable. V (live only): real-repository delta sizes and times.
+The suite proves the supervisor's side of the validator; it does not prove the pod side.
 
 **Measured worst cases (slice 9b, one machine, local tmpfs).** The work follows the paths times their depth and the directories the
 delta names, not the depth squared: the deletions' parent directories are made once for the tree check and the apply together (a walk up
@@ -1794,87 +1794,11 @@ directory); the git version behaviour on the production image; that a Linux file
 does not fail part-way; the `.gitmodules` of a worktree a worker touched (it is an ordinary file to this slice, which does not read
 its content; whether a later supervisor step ever acts on a new submodule URL in it is the open question of slice 3, above).
 
-## The live runbook and its check scripts (slice 21)
-
-The runbook is `docs/pod-backend-runbook.md`: **a document and four small programs, delivered and not run.** Nothing in this
-program was ever run against a cluster; this slice writes down how a person with Azure access does it, in the order the owner
-decided: **read-only checks on production first, then a throwaway mirror** built from the same `infra/` code with its own `name_prefix`,
-resource group and Terraform state, and what the person records becomes the test fixtures of slice 22. It changes no behaviour, sets no
-variable, adds nothing to the image and is imported by nothing (the tools live in `tools/`, the tests in `tests/`).
-
-| Part | What it does | Writes anything? |
-|---|---|---|
-| A | people, approvals, the prerequisites as statements (**one repository per node**, the **admission policy matrix** validated on kind), tools, the mirror's separation rules, cost, recordings, stop rules | no |
-| B | read-only production checks: the cluster profile and tier, the vCPU quota sums, the system node's headroom, the real footprint of sessions (replaces the PROVISIONAL classes), the live plan role against the repository file, the production plan, platform versions, limits outside Azure | no |
-| C | the mirror: names (shell variables with guards), a scratch copy of the committed `infra/` files, its own state, the quota sums before anything is created, the two-stage first apply, an empty second plan | the mirror; C4's apply also makes `AcrPull` on the **production registry** (a production write) |
-| D | Cilium, node auto-provisioning and the NodePool on the mirror, one apply each, with the downtime, cold start, disruption shapes, scale to zero, registry pull, egress and the sandbox check | the mirror |
-| E | `pod_backend_enabled` on the mirror: the log exclusion, the network fence from inside a pod, the admission matrix on AKS, the parameter during an image promotion, the denial text | the mirror |
-| F | the plan identity: a mirror role with another name, reads as that identity, **the hard gate** (`terraform plan` as the plan identity on the mirror), then the production role | the mirror; F1 gives the mirror's plan identity `Reader` on the **production registry** (a production write) and F4 updates the production role (a production write) |
-| G | the session path on the mirror (needs slices 12b, 16 and 17): identities, socket and spool, the API's answers, one real session, inside a worker pod, one repository per node live, failure shapes, the `claude` error shapes, the teardown | the mirror |
-
-* **Two hard gates.** (1) **The plan as the plan identity on the mirror (F3) passes before any production enabling flip, any apply of the
-  admission policies in production and any update of the production role.** The two admission kinds have no data action in the public Azure
-  permissions reference; whether the authorizer maps them to `customresources/read` is only settled by that plan; a `Forbidden` is a stop and a
-  report, never a widening of the role by guessing a name. (2) **One repository per node** (G6): until `live_checks.py colocation` passes with two
-  repositories running at once, no more than one repository may use the pod backend. The admission matrix of slice 15b is a prerequisite
-  (it is run again on AKS in E4, because the evaluator there is not kind's).
-* **Three production writes, not one.** The mirror shares the registry with production and writes two role assignments on it: C4's Terraform makes `AcrPull`
-  for the mirror's kubelet identity (`azurerm_role_assignment.acr_pull`) and F1 gives the mirror's plan identity `Reader` on the registry (the plan reads it by name). Both are
-  declared production writes next to F4 (the production role), each needs the Owner's written approval before its step, and G9 deletes both by name **before** the group
-  (the deletion of the mirror's resource group does not remove them: the registry is not in it). **The mirror's names are shell variables set once, with guards**
-  (a name that is empty, production's, not a `name_prefix` or not holding the prefix is refused; the group is created only if it does not exist and deleted only when it carries the
-  tag `purpose=pod-backend-mirror`), the scratch copy of `infra/` is made from the committed files only (`git archive`, so a production `terraform.tfvars` or state in the checkout cannot come along), and every
-  `kubectl` of the page, in a sentence as in a block, names its cluster (`live_checks.py` refuses a `kubectl` command without `--kubeconfig`).
-* **A trap the runbook names.** A custom role name is tenant-wide: `az role definition update` on `Factory Plan Cluster Reader` changes the
-  **production** role, so the mirror's plan identity gets `Factory Plan Cluster Reader <prefix>` (`live_reports.py mirror-role`) and the production
-  role is updated in exactly one step (F4), after the gate, by the owner.
-* **The table.** The runbook ends with a table that maps every UNVERIFIED claim of this page, `docs/capacity.md`, `docs/operations.md` and
-  `infra/README.md` to the step that settles it, or says why no step does (a decision, a source other than the
-  cluster, a later change). `tests/test_live_runbook.py` fails for an UNVERIFIED paragraph, bullet or item of these that has no row, for a
-  row whose quoted phrase is no longer in its file and for a step a row names that does not exist.
-
-**The check scripts** (standard library only, argv lists, a timeout on every call, only fixed text, counts and numbers printed, never a name of a
-pod or a node, an environment value, a token or a secret; each is pinned by a test that fails when the protection is removed):
-
-| Program | What it is | Commands |
-|---|---|---|
-| `tools/live_checks.py` | read-only `az` and `kubectl` calls and a verdict on each answer (the only calls that are not plain reads are the server-side dry run of `denial-sample` and the access review of `kubectl auth can-i`; neither persists anything) | `quota` (the regional total and a family against what the plan needs), `nodes`, `node-requests`, `crds` (the field paths `infra/worker_pool.tf` writes against the installed definitions), `reads --profile plan` (every kind the plan identity reads), `can-i --profile launcher` or `worker` (the launcher's is run in G1, after slice 16's Role exists), `colocation`, `capture`, `denial-sample`, `pod-fields` (fields of this cluster's pod API that neither the policy nor a golden pod names), `golden-image` |
-| `tools/live_reports.py` | verdicts over files the person saved; calls nothing | `footprint` (against the resource classes), `role-diff`, `mirror-role`, `plan-log` (no error, no Forbidden, no destroy, no Deployment change, except for the step that turns the backend on and says `--allow-deployment`), `boot-compare` |
-| `tools/live_recording.py` | the recording format, its scrubber and its validator | `kinds`, `import`, `validate` |
-| `tools/live_pod_probe.py` | probes fed to an interpreter inside a pod of the mirror (`kubectl exec -i ... python3 - MODE < file`, so the file never lands on a pod's disk) | `socket`, `spool`, `secret-volume`, `environment`, `network`, `statuses` |
-
-**The recording format** (`tools/live_recording.py`): one JSON file with exactly the keys `format`, `step`, `kind`, `recorded_at`, `tool`, `argv`,
-`returncode`, `redactions`, `payload` and `sha256`; a closed vocabulary of kinds (a pod, the events of a pod, a NodeClaim, a NodePool, a CRD, node
-lists, quota, role definitions, the `footprint` block, an API error answer, an admission denial, a launcher reply, the wrapper's canary lines, the
-`claude` result events, a plan's action list, the probe output, a timing, a note). A Kubernetes Secret or SecretList is **refused**, never scrubbed (also one written
-inside a string, as in the last-applied-configuration annotation); credential shapes, long hexadecimal strings that are not digests, GUIDs and IP addresses are replaced, and so is the value after
-`token:`, `password=` or `--token=` in a text and the value of an environment entry whose name says secret; `validate` fails on anything the scrubber would still change, so a hand edit cannot smuggle
-a value in; a file is written once, with mode 0600. The scrubber does not know issue text, titles or repository names: the reviewer does (the runbook, A6).
-
-**Checks for this slice.** L: `PYTHONPATH=src python3 -m unittest tests.test_live_checks tests.test_live_reports tests.test_live_recording
-tests.test_live_pod_probe tests.test_live_runbook` (fake `az` and `kubectl`, real temporary directories and sockets, the page parsed: its parts and
-steps, every command it names parsed with the tool's own argument parser, no write verb against the production kubeconfig, the table against the
-documents). C: compile and the unit tests on Python 3.11 to 3.13 (`compileall` covers `tools/`). P: not applicable (no Terraform). V: the runbook itself,
-which is the point of the slice.
-
-**UNVERIFIED (slice 21).** (1) Every command of the runbook was written without access to Azure and none was run: a command that fails for a reason
-of syntax is a defect of the page. (2) The tools read real answers they have only seen as canned ones: the shape of `az vm list-usage`, the layout of a
-custom resource definition's schema, the format of `kubectl explain`, the words of `kubectl auth can-i` and of a Terraform plan (`Plan: N to add`, `No
-changes.`, `Error:`). (3) The scrubber is a safety net: it finds the credential shapes it knows and nothing else, and what a real `status` or a
-session log holds beyond them is the reviewer's to judge. (4) The probes' answers inside real pods: `kubectl exec` as root may switch identity,
-`access(2)` agrees with the real permission check on an `emptyDir` under `hostUsers: false`, and a refusal and a missing path are told apart by errno
-on the real file systems. (5) The quota sums are a conservative estimate (twice the fixed pools for a surge), not Azure's own arithmetic at create time.
-(6) Part G was written against slices 12b, 16 and 17 as they are in the tree, by reading them and not by running them (the containers `launcher`, `relay` and
-the init container `volume-perms`, the settings that `pod_backend_enabled` sets, the Role `factory-launcher`, the Service `factory-relay-svc`): a name or a verb the cluster shows
-differently is a defect of the page. (7) The guards of C1 and G9 are shell functions that the tests run with bash and a stub `az`; that the `az` forms they rely on (`az group exists`,
-`az group show --query tags.purpose`, `az ad app show --query displayName`, `az role assignment delete --assignee --role --scope`, `git archive` into `tar --strip-components=1`) behave as written is UNVERIFIED, as is whether the enabling flip's plan
-(E1) shows the Deployment change the page expects.
-
 ## UNVERIFIED
 
 * Every PROVISIONAL number: the resource classes and `emptyDir` limits, the byte, file, time and
   thread caps, the sidecar uids (they only have to avoid 10001, 10002 and group 10010) and the timing
-  constants. A read-only production check and a throwaway mirror replace them.
+  constants. A measurement on a real deployment replaces them.
 * That the label prefix `factory.internal/` needs no domain the owner controls (it is private to this
   cluster).
 * That `tflint-ignore` applies to a multi-line `locals` entry in CI (the fallback is above).
@@ -1909,7 +1833,7 @@ differently is a defect of the page. (7) The guards of C1 and G9 are shell funct
   provisional numbers of the run, and exit code 0 for a posted result (details in "The pod worker, part B").
 * Slice 6: that a real API server accepts the pod as written; that Karpenter and NAP honour the
   required anti-affinity when they provision a node and that the scheduler keeps one repository per
-  node (live check, runbook co-location test); that the wrapper command (`/usr/bin/tini` and
+  node (a run with two repositories at once on a real cluster; until it has passed, no more than one repository may use the pod backend); that the wrapper command (`/usr/bin/tini` and
   `/opt/factory/bin/python` in the image) exists in a pod; that the kubelet retries a Secret that is
   created a moment after its pod; and every statement about the real admission policy (above).
 * Slice 5: that the previous image tolerates the new `pod` key in every reader (not run: the test only pins that this
@@ -1925,7 +1849,7 @@ differently is a defect of the page. (7) The guards of C1 and G9 are shell funct
   terminating pod `alive`), against the fake API only. Slice 12b must install the reader and the terminator before any
   pod is recorded: without them a recorded pod is kept for ever (fail closed). Not run live.
 * Slice 14: that an unset variable gives no plan line and that both cluster attributes are "update in
-  place", not "replace" (provider source reading only; a `terraform plan` with the read-only identity and a scratch copy of the mirror
+  place", not "replace" (provider source reading only; a `terraform plan` with the read-only identity and a scratch deployment
   decide); the Cilium downtime and the NAP-before-Cilium order; whether `network_policy` is needed; the
   `karpenter.sh/v1` and `karpenter.azure.com/v1beta1` field names against the installed definitions
   (`expireAfter` under `spec.template.spec` or `spec.disruption`, `podPidsLimit`, `startupTaints`);
@@ -1938,14 +1862,14 @@ differently is a defect of the page. (7) The guards of C1 and G9 are shell funct
   that Cilium enforces `ipBlock.except` on AKS (the Cilium documentation says an `ipBlock` cannot select pod or node
   addresses, so the three cluster ranges in the exception may be redundant or handled as identities) and whether
   `network_policy` must be set; that the DNS rule matches after the service address is translated; that the API
-  server's public address is refused without a credential (decided by the canary and the live control); the
+  server's public address is refused without a credential (decided by the canary and by a request from a pod of a real cluster); the
   `exclude_namespaces` key spelling and the agent's restart behaviour on AKS, and the documented default list, which was
   read in Microsoft's data-collection ConfigMap article and not tested on a cluster; that a worker pod's output is
   really absent from Log Analytics; that the read-only plan identity can read a namespace, a service account and a
   network policy through the built-in reader role (the custom plan role is changed in slice 15b, not here).
 * Slice 15b: that the `kubernetes_manifest` provider path accepts the `admissionregistration.k8s.io/v1` kinds; that a real API
   server accepts and evaluates the CEL as the offline model does (type check against the pod schema, cost, function semantics:
-  only a run against a real API server (the admission matrix on kind, or the recorded run on the mirror) shows it); differences of CEL semantics and of the pod schema between the kind
+  only a run against a real API server (the admission matrix on kind, or a recorded run on a scratch deployment) shows it); differences of CEL semantics and of the pod schema between the kind
   version and AKS; fields added to the pod API after the version the deny-lists were written for; that the server's
   defaulting is what `tests/test_policy_cel.py` emulates; that ephemeral containers are refused on create before the policy runs;
   the ordering of the parameter ConfigMap update during an automatic image promotion (a bounded window in which the launcher's pods
@@ -1971,10 +1895,6 @@ differently is a defect of the page. (7) The guards of C1 and G9 are shell funct
 * Slice 11: see "The launcher and its client, Checks and UNVERIFIED": `SO_PEERCRED` across containers that share an
   `emptyDir` under `hostUsers: false`; the kubelet's retry delay for a pod whose Secret appears a moment later; the
   garbage collection timing of a Secret with an owner reference; every Kubernetes shape the fake assumes.
-* Slice 21: see "The live runbook and its check scripts": that the commands of the runbook run as written (none was run), that the
-  tools read the real shapes of `az`, `kubectl` and Terraform output as they read the canned ones, that the scrubber is enough with a
-  reviewer, the probes' answers inside real pods, the quota arithmetic, Part G against slices 12b, 16 and 17 as read in the tree, and the `az` forms of the
-  guards of C1 and G9.
 
 ## Slice 1: API errors and the stop-the-world breaker
 
@@ -2003,7 +1923,7 @@ Checks for this slice: L (the unit tests `tests.test_apierror`, `tests.test_stop
 Everything the classifier knows about the real `claude` error shapes is contract-tested against
 assumed shapes. UNVERIFIED: the real shape of a spend-limit, an authentication and a rate-limit
 error, and that a rate-limit error reaches the `result` event at all. Until a person has recorded
-them (slice 21 and slice 22), an unrecognised 429 is `rate_limit_unknown` and trips after 3 in 5
+them from a real run (slice 22), an unrecognised 429 is `rate_limit_unknown` and trips after 3 in 5
 minutes rather than at once. Setting the workspace spend limit in the Anthropic Console stays a human
 action.
 
@@ -2017,7 +1937,7 @@ default. **Everything here is contract-tested against assumed shapes: no cluster
 paths, the `DeleteOptions` body, the `Status` answers, the pod statuses of every failure mode and the
 way an admission denial reaches the client are the documented Kubernetes API as the author knows it,
 checked only against the fake over a local HTTP server on `127.0.0.1` with a fake clock and an injected
-sleep. Slice 21 records the real shapes on the throwaway mirror and slice 22 replaces the assumptions.
+sleep. A recording of the real shapes from a cluster (slice 22) replaces the assumptions.
 The new modules are not imported by the manager, so the running behaviour does not change; building an image from them and promoting it
 are the operator's own pipeline's work (the reference deployment's pipeline is not shipped here).
 
@@ -2096,7 +2016,7 @@ a test asserts the client never asks.
   example `[host-path]`), and the client keeps exactly those ids that `podspec.POLICY_RULES` knows, in the
   contract's order. Until that slice agrees, a denial from a real server may carry an empty `rules` tuple.
   That bracket form is an assumption of this slice (UNVERIFIED).
-  First live run (kind v1.36.1, `docs/pod-backend-local-e2e.md`, defect D1): both assumptions were wrong in the same way. The policy's
+  First live run (a local kind v1.36.1 cluster): both assumptions were wrong in the same way. The policy's
   `reason` is `Forbidden`, so a denial is a **403**, not a 422 (the API server's own validation, for example `hostNetwork` with
   `hostUsers: false`, is the 422), and each message carries `[rule:<id>]`, not `[<id>]`. The client had read every 403 as refused credentials
   and found no id; it now reads a 403 whose Status names a ValidatingAdmissionPolicy as `Denied` (status 403) and takes the id from either
@@ -2165,8 +2085,8 @@ Rules of the classifier:
 ### Checks and UNVERIFIED
 
 Checks for this slice: L (`PYTHONPATH=src python3 -m unittest tests.test_kube tests.test_podstatus`) and
-C; P is not applicable (no infrastructure change); V is none. Live, slice 21 records real pod, event and
-log JSON for each failure mode on the mirror and checks that the launcher token can create and delete a
+C; P is not applicable (no infrastructure change); V is none. Live (not run): real pod, event and
+log JSON for each failure mode on a real cluster, and that the launcher token can create and delete a
 pod in the worker namespace.
 
 UNVERIFIED: every real pod and event shape, in particular the Pending reason at a NodePool limit and the shape of a Karpenter-initiated eviction (the `eviction-reason`, `disruption-condition`
@@ -2297,7 +2217,7 @@ builds pods only there; a different value refuses to start). The Anthropic key i
 ### Checks and UNVERIFIED
 
 Checks for this slice: L (`PYTHONPATH=src python3 -m unittest tests.test_launcher`) and C; P is not applicable
-(no infrastructure change); V is none. Live, slice 21: a process with uid 10002 in the manager's main container
+(no infrastructure change); V is none. Live (not run): a process with uid 10002 in the manager's main container
 cannot connect to the socket, cannot create, rename or unlink anything in `/run/factory` and cannot replace the
 socket; the launcher token can create and delete a pod and a Secret in the worker namespace and cannot get or
 list Secrets or exec.
@@ -2608,7 +2528,7 @@ launcher that stays down fails the gate before `terraform apply`, which is the f
 ### Checks and UNVERIFIED
 
 Checks: L (`PYTHONPATH=src python3 -m unittest tests.test_podliveness tests.test_podsweep tests.test_podsweep_recorded tests.test_operations_pods tests.test_infra_deploy_gate
-tests.test_operations tests.test_launcher`) and C; P is not applicable (no Terraform); V is none. Live, slice 21: a pod's heartbeats and silence against a
+tests.test_operations tests.test_launcher`) and C; P is not applicable (no Terraform); V is none. Live (not run): a pod's heartbeats and silence against a
 real relay, the sweep against a real launcher with a pod left behind by a killed manager, and the gate against a manager with the backend wired in.
 
 UNVERIFIED: that the relay's `last_heartbeat` is written on every call a live wrapper makes (slice 10b sets the heartbeat interval; the window of 300 s
@@ -2845,9 +2765,7 @@ The numbering is the program's own; every pull request carries `Refs #N` and non
 | 16, 17 | Terraform: Role and RoleBinding (each `depends_on` `kubernetes_network_policy_v1.worker_default_deny`: the fence exists before any Role does); launcher and relay containers, init container, pool taint (delivered, not wired in: default off, see "Terraform C"; the pod backend that would use it is off by default as well) | 145 147 |
 | 18 | pod pool and ceiling, pacing, reserve-on-admit (delivered, used by `PodBackend` (12b), which is off by default: see "The pod pool: ceiling, pacing and reserve-on-admit") | 146 |
 | 19, 20 | pod-side liveness; orphan sweep, recovery retry, pod-aware deploy gate (delivered, used by `PodBackend` (12b), which is off by default: see "Pod-side liveness, the orphan sweep and the deploy gate") | 147 |
-| 21 | the live runbook and check scripts (delivered, nothing was run: see `docs/pod-backend-runbook.md` and "The live runbook and its check scripts"; nothing is run by an assistant) | 144 to 147 |
-| 22 | the first end-to-end run on a local kind cluster with a stub agent, its reproducible harness (`tools/local_pod_e2e/`) and its record (`docs/pod-backend-local-e2e.md`); not Azure, not the runbook | 145 |
-| 22 | after a person has run the runbook: recorded fixtures replace assumed shapes | 145 146 147 |
+| 22 | after a person has run the pod backend on a real cluster: recorded fixtures replace assumed shapes (not done) | 145 146 147 |
 
 Slices 13 to 17 are Terraform and default off; each pull request shows the `plan` summary and the
 required zero-cluster-change result. The Python slices run in parallel after this one.

@@ -7,7 +7,7 @@ server does to an object before validating admission (defaulting, the two tolera
 plugin, the reset of ``status``, the request defaulted from the limit, empty lists and plain false booleans dropped by the
 typed round trip). A mutation passes the matrix when the CEL of ITS rule denies it, or when the server turns it into the
 golden object (it is then not a mutation). The model is NOT evidence that a real API server accepts the expressions: that
-is what a run of ``tools/policy_matrix.py`` against a kind cluster replays (tools/local_pod_e2e/).
+is what a run of ``tools/policy_matrix.py`` against a kind cluster replays.
 
 Every rule of the policies is mutation-tested here: removing a validation, or replacing its expression by ``true``, makes
 the matrix report it (the last tests).

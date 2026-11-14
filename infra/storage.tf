@@ -1,6 +1,6 @@
 # Storage: a blob container for the per-repository leases that guarantee one supervisor per
 # repository. Run state and worktrees live on an Azure Disk (k8s.tf), not in a storage
-# account: a hostUsers=false pod cannot mount NFS (spikes/S1.md).
+# account: a hostUsers=false pod cannot mount NFS.
 
 # --- Lock account -----------------------------------------------------------------
 #

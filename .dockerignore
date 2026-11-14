@@ -20,14 +20,6 @@ tools/*
 !tools/token_broker.py
 !tools/sandbox_e2e.py
 
-# spike procedures that run inside the container (spikes/README.md)
-!spikes
-spikes/*
-!spikes/s1_bwrap.sh
-!spikes/s2_nfs.py
-!spikes/s3_uid_split.py
-!spikes/s3b_data_tree.py
-
 # image build inputs
 !image
 image/*

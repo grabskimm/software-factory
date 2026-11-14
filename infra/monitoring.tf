@@ -12,7 +12,9 @@
 #                 token from Key Vault) and the kubelet's container metrics (cAdvisor); evaluates the
 #                 alert rules; keeps 15 days on its own Premium disk.
 #   Grafana       dashboards as code (ConfigMaps), Entra sign-in (generic OAuth), served at /grafana/ by
-#                 Caddy (ingress.tf). State is an emptyDir: it is disposable.
+#                 Caddy (ingress.tf). State is an emptyDir: it is disposable. With
+#                 grafana_anonymous_viewer_enabled (default false) anyone who reaches the host may also read it,
+#                 as a Viewer and without signing in (docs/metrics.md, "Publishing the dashboards read-only").
 #   Alertmanager  only with alert_receiver != "none"; the destination URL is a Key Vault secret.
 #
 # Secrets: three Key Vault secrets (metrics-bearer-token, grafana-oauth-client-secret and, with a
@@ -31,8 +33,8 @@
 # "NAP-side series"). Its resources are created only while monitoring_enabled is true, so a default plan is unchanged.
 #
 # Everything depends on the cluster admin roles through the namespace. Whether the images start under
-# these settings, whether the kubelet scrape works and whether Entra sign-in works is UNVERIFIED
-# (README.md): nothing here was applied to a real cluster.
+# these settings, whether the kubelet scrape works and whether Entra sign-in works is UNVERIFIED:
+# check them on your cluster after the first apply (infra/README.md, "Monitoring").
 
 locals {
   monitoring_count         = var.monitoring_enabled ? 1 : 0
@@ -133,12 +135,16 @@ locals {
   # --- Grafana -------------------------------------------------------------------------------------
 
   grafana_ini_text = templatefile("${path.module}/monitoring/grafana.ini.tftpl", {
-    port          = local.grafana_port
-    domain        = local.ingress_primary_host
-    client_id     = coalesce(var.grafana_oauth_client_id, "unset")
-    tenant_id     = var.tenant_id
-    operator_role = var.grafana_operator_role
+    port             = local.grafana_port
+    domain           = local.ingress_primary_host
+    client_id        = coalesce(var.grafana_oauth_client_id, "unset")
+    tenant_id        = var.tenant_id
+    operator_role    = var.grafana_operator_role
+    anonymous_viewer = var.grafana_anonymous_viewer_enabled
   })
+  # The data source and the dashboards are provisioned as not editable (the data source's `editable`, the provider's
+  # allowUiUpdates and each dashboard's own `editable`), and orgId 1 is the organization that [auth.anonymous] of
+  # grafana.ini names (Grafana's default, "Main Org."): with grafana_anonymous_viewer_enabled these are what a visitor reads.
   grafana_provisioning = {
     "datasources.yaml" = yamlencode({
       apiVersion = 1
@@ -818,7 +824,7 @@ resource "kubernetes_service_v1" "alertmanager" {
 # without authentication, like the Prometheus port: it exposes pod and node names (and, from #145, worker pod names), which is
 # why the open network-isolation decision of issue 48 (docs/metrics.md) names it. There is no NetworkPolicy for it here: the
 # monitoring namespace has none, and the only one of this stack is the prepared one of the factory namespace (the end of this file).
-# Whether the image starts under the restricted settings is UNVERIFIED (README.md): the distroless image runs as 65534.
+# Whether the image starts under the restricted settings is UNVERIFIED: the distroless image runs as 65534.
 
 resource "kubernetes_service_account_v1" "kube_state_metrics" {
   count = local.monitoring_count

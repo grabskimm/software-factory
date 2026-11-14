@@ -7,7 +7,7 @@
 # IMAGE is any reference `docker run` accepts (a tag, or repo@sha256:...). Needs
 # docker. Checks are about the image contents and the entrypoint's privilege model;
 # whether bubblewrap can create user namespaces depends on the container runtime
-# (spike S1) and is checked only when SMOKE_SANDBOX=1 (see the end of this file).
+# and is checked only when SMOKE_SANDBOX=1 (see the end of this file).
 # SC2016: the single-quoted scripts passed to `sh -c` run inside the container, so
 # the variables in them must NOT be expanded by this shell.
 # shellcheck disable=SC2016
@@ -178,7 +178,7 @@ check "code is root-owned and not writable by factory" \
 	run sh -c '[ "$(stat -c %U /opt/factory)" = root ] && [ "$(stat -c %U /opt/token-broker)" = root ] && [ ! -w /opt/factory ] && [ ! -w /opt/token-broker ] && [ ! -w /etc/claude-code/managed-settings.json ]'
 
 # COPY --chmod must not leak into parent directories (BuildKit >= 0.23 did that).
-for dir in /etc/claude-code /opt/factory-tools /opt/factory-spikes; do
+for dir in /etc/claude-code /opt/factory-tools; do
 	out=$(run stat -c '%a %U:%G' "$dir" 2>/dev/null) || out="command failed"
 	expect_eq "$dir is mode 755 and owned by root" "755 root:root" "$out"
 done
@@ -271,8 +271,8 @@ fi
 
 # --- optional: the real sandbox ---------------------------------------------------
 # Docker's default seccomp and AppArmor profiles block user namespaces, so this
-# only runs on request and then without them. It is NOT a substitute for spike S1,
-# which has to be run on the target cluster itself.
+# only runs on request and then without them. It is NOT a substitute for
+# factory-sandbox-check, which has to be run in a pod on the target cluster itself.
 if [ "${SMOKE_SANDBOX:-0}" = 1 ]; then
 	check "sandbox: factory-sandbox-check (tools/sandbox_e2e.py as the worker)" \
 		docker run --rm --security-opt seccomp=unconfined --security-opt apparmor=unconfined \
